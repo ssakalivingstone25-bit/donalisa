@@ -1,0 +1,76 @@
+rules_version = '2';
+
+// Firebase Cloud Storage Rules for DONALISA
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper Functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function isValidImage() {
+      return request.resource.contentType.matches('image/.*') && request.resource.size < 5 * 1024 * 1024; // < 5MB
+    }
+
+    function isValidVideo() {
+      return request.resource.contentType.matches('video/.*') && request.resource.size < 4 * 1024 * 1024 * 1024; // < 4GB
+    }
+
+    function isValidSubtitle() {
+      return request.resource.contentType.matches('.*text.*') || request.resource.contentType.matches('.*vtt.*') || request.resource.contentType.matches('.*srt.*');
+    }
+
+    // Public Assets (Read-only for users, CRUD for Admins)
+    match /movies/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidVideo();
+    }
+
+    match /trailers/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidVideo();
+    }
+
+    match /posters/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidImage();
+    }
+
+    match /banners/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidImage();
+    }
+
+    match /thumbnails/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidImage();
+    }
+
+    match /subtitles/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidSubtitle();
+    }
+
+    // User Avatars (Users can read all avatars, but upload only their own)
+    match /avatars/{userId}/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) && isValidImage();
+    }
+
+    // Default Deny
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

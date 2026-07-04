@@ -1,0 +1,6 @@
+{
+  "name": "DONALISA",
+  "description": "Production-Ready Progressive Web App (PWA) movie streaming platform with Firebase Auth, Firestore, storage, and role-based access.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,265 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User account profile and RBAC role definition",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth User ID" },
+        "email": { "type": "string", "format": "email", "description": "User email address" },
+        "displayName": { "type": "string", "description": "User full name" },
+        "photoURL": { "type": "string", "description": "Avatar image URL" },
+        "role": { "type": "string", "enum": ["user", "viewer", "admin"], "description": "RBAC access role" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last profile update timestamp" },
+        "lastLogin": { "type": "string", "format": "date-time", "description": "Last login timestamp" },
+        "provider": { "type": "string", "description": "Auth provider (google.com, password, etc)" }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    },
+    "Movie": {
+      "title": "Movie",
+      "description": "Streaming video catalog metadata",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique movie identifier" },
+        "title": { "type": "string", "description": "Movie title" },
+        "description": { "type": "string", "description": "Synopsis" },
+        "posterUrl": { "type": "string", "description": "Poster asset URL" },
+        "backdropUrl": { "type": "string", "description": "Horizontal banner URL" },
+        "videoUrl": { "type": "string", "description": "HLS or MP4 stream URL" },
+        "trailerUrl": { "type": "string", "description": "Trailer stream URL" },
+        "duration": { "type": "number", "description": "Duration in seconds" },
+        "releaseYear": { "type": "number", "description": "Year of release" },
+        "rating": { "type": "string", "description": "Content rating (PG-13, R, etc.)" },
+        "categories": { "type": "array", "description": "List of category slugs" },
+        "viewCount": { "type": "number", "description": "Total views" },
+        "uploadedBy": { "type": "string", "description": "Admin UID who created record" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Upload timestamp" }
+      },
+      "required": ["title", "description", "posterUrl", "videoUrl", "duration", "releaseYear", "rating", "categories", "uploadedBy", "createdAt"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Genre classification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Category ID" },
+        "name": { "type": "string", "description": "Display name" },
+        "slug": { "type": "string", "description": "URL slug" },
+        "description": { "type": "string", "description": "Category explanation" }
+      },
+      "required": ["name", "slug"]
+    },
+    "Favorite": {
+      "title": "Favorite",
+      "description": "User saved watchlist item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Favorite record ID" },
+        "userId": { "type": "string", "description": "Owner UID" },
+        "movieId": { "type": "string", "description": "Referenced movie ID" },
+        "movieTitle": { "type": "string", "description": "Cached movie title" },
+        "moviePoster": { "type": "string", "description": "Cached poster URL" },
+        "addedAt": { "type": "string", "format": "date-time", "description": "Timestamp added" }
+      },
+      "required": ["userId", "movieId", "movieTitle", "moviePoster", "addedAt"]
+    },
+    "WatchHistory": {
+      "title": "WatchHistory",
+      "description": "User video playback progress tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "History record ID" },
+        "userId": { "type": "string", "description": "Viewer UID" },
+        "movieId": { "type": "string", "description": "Movie ID" },
+        "progressSeconds": { "type": "number", "description": "Current playback timestamp" },
+        "totalDurationSeconds": { "type": "number", "description": "Total video length" },
+        "completed": { "type": "boolean", "description": "Whether playback reached 90%+" },
+        "lastWatchedAt": { "type": "string", "format": "date-time", "description": "Last updated timestamp" }
+      },
+      "required": ["userId", "movieId", "progressSeconds", "totalDurationSeconds", "completed", "lastWatchedAt"]
+    },
+    "Download": {
+      "title": "Download",
+      "description": "PWA offline cached video tracker",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Download item ID" },
+        "userId": { "type": "string", "description": "User UID" },
+        "movieId": { "type": "string", "description": "Movie ID" },
+        "quality": { "type": "string", "enum": ["720p", "1080p"], "description": "Cached stream quality" },
+        "fileSizeMB": { "type": "number", "description": "Storage footprint in MB" },
+        "downloadedAt": { "type": "string", "format": "date-time", "description": "Download completion time" }
+      },
+      "required": ["userId", "movieId", "quality", "downloadedAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Push alert payload metadata",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Alert ID" },
+        "userId": { "type": "string", "description": "Recipient UID or null for global" },
+        "title": { "type": "string", "description": "Notification heading" },
+        "body": { "type": "string", "description": "Alert content" },
+        "actionUrl": { "type": "string", "description": "Deep link path" },
+        "read": { "type": "boolean", "description": "Read status" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Dispatch time" }
+      },
+      "required": ["title", "body", "read", "createdAt"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "User specific playback preferences",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Setting doc ID (matches userId)" },
+        "theme": { "type": "string", "enum": ["dark", "light", "system"], "description": "Color theme" },
+        "autoplayNext": { "type": "boolean", "description": "Auto play next recommendation" },
+        "notificationsEnabled": { "type": "boolean", "description": "Push permission toggle" },
+        "defaultQuality": { "type": "string", "enum": ["auto", "1080p", "720p"], "description": "Preferred streaming quality" }
+      },
+      "required": ["theme", "autoplayNext", "notificationsEnabled", "defaultQuality"]
+    },
+    "Rating": {
+      "title": "Rating",
+      "description": "User movie star rating",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Rating ID (matches userId_movieId)" },
+        "userId": { "type": "string", "description": "User who rated" },
+        "movieId": { "type": "string", "description": "Movie ID" },
+        "rating": { "type": "number", "description": "Rating score from 1 to 5" },
+        "ratedAt": { "type": "string", "format": "date-time", "description": "Time of rating" }
+      },
+      "required": ["userId", "movieId", "rating", "ratedAt"]
+    },
+    "ActiveViewer": {
+      "title": "ActiveViewer",
+      "description": "User active movie playback session tracking for realtime viewer counters",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Viewer ID (matches userId_movieId)" },
+        "userId": { "type": "string", "description": "User who is actively viewing" },
+        "movieId": { "type": "string", "description": "Movie ID actively streamed" },
+        "lastActive": { "type": "string", "format": "date-time", "description": "Time of last session heartbeat" }
+      },
+      "required": ["userId", "movieId", "lastActive"]
+    },
+    "WatchlistItem": {
+      "title": "WatchlistItem",
+      "description": "Item saved in personal watchlist queue",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Watchlist ID (userId_movieId)" },
+        "userId": { "type": "string", "description": "User who saved" },
+        "movieId": { "type": "string", "description": "Movie ID" },
+        "addedAt": { "type": "string", "format": "date-time", "description": "Time added to watchlist" }
+      },
+      "required": ["userId", "movieId", "addedAt"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "Real-time user feedback on media items",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Comment ID" },
+        "movieId": { "type": "string", "description": "Target video stream or song ID" },
+        "userId": { "type": "string", "description": "Commenting user UID" },
+        "userEmail": { "type": "string", "description": "Commenting user email" },
+        "userName": { "type": "string", "description": "Commenting user name" },
+        "userPhoto": { "type": "string", "description": "Commenting user avatar" },
+        "text": { "type": "string", "description": "Comment text content" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["movieId", "userId", "userEmail", "userName", "text", "createdAt"]
+    },
+    "CommentLike": {
+      "title": "CommentLike",
+      "description": "User like connection on a comment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique like ID (userId_commentId)" },
+        "userId": { "type": "string", "description": "Liking user UID" },
+        "commentId": { "type": "string", "description": "Target comment ID" },
+        "likedAt": { "type": "string", "format": "date-time", "description": "Liking timestamp" }
+      },
+      "required": ["userId", "commentId", "likedAt"]
+    },
+    "Broadcast": {
+      "title": "Broadcast",
+      "description": "Real-time administrator Live TV broadcast configurations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Single record identifier (usually 'current')" },
+        "activeMovieId": { "type": "string", "description": "ID of currently broadcasting Movie or Song" },
+        "status": { "type": "string", "enum": ["live", "repeat", "off"], "description": "Status of the broadcast channel" },
+        "tickerUpdates": { "type": "string", "description": "Moving horizontal ticker updates/hashtags" },
+        "startedAt": { "type": "string", "format": "date-time", "description": "Broadcast starting time" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Configuration update timestamp" },
+        "adScheduleTimestamps": { "type": "string", "description": "Comma-separated list of scheduled ad seconds triggers" },
+        "adScheduleDuration": { "type": "number", "description": "Ad popup display duration in seconds" }
+      },
+      "required": ["activeMovieId", "status", "tickerUpdates", "startedAt"]
+    }
+  },
+  "firestore": {
+    "/broadcast/{broadcastId}": {
+      "schema": "Broadcast",
+      "description": "Real-time Live TV channels and tickers"
+    },
+    "/comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Real-time comments for movie/song items"
+    },
+    "/comment_likes/{likeId}": {
+      "schema": "CommentLike",
+      "description": "Comment likes from other users"
+    },
+    "/active_viewers/{viewerId}": {
+      "schema": "ActiveViewer",
+      "description": "Realtime active viewers streaming movie sessions"
+    },
+    "/ratings/{ratingId}": {
+      "schema": "Rating",
+      "description": "User star ratings for movies"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles and identity role definitions"
+    },
+    "/movies/{movieId}": {
+      "schema": "Movie",
+      "description": "Catalog of video streaming items"
+    },
+    "/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Movie genres and category tags"
+    },
+    "/favorites/{favoriteId}": {
+      "schema": "Favorite",
+      "description": "User saved favorite items"
+    },
+    "/watchHistory/{historyId}": {
+      "schema": "WatchHistory",
+      "description": "User playback timestamp resumes"
+    },
+    "/watchlist/{watchlistId}": {
+      "schema": "WatchlistItem",
+      "description": "User saved watchlist for later queue"
+    },
+    "/downloads/{downloadId}": {
+      "schema": "Download",
+      "description": "Offline PWA download references"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "In-app and FCM notification history"
+    },
+    "/settings/{settingId}": {
+      "schema": "Setting",
+      "description": "User specific app configuration"
+    }
+  }
+}
