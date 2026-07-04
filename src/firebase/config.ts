@@ -8,7 +8,10 @@ import { getAuth, GoogleAuthProvider, EmailAuthProvider, type Auth } from 'fireb
 import { initializeFirestore, doc, getDocFromServer, type Firestore } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 import { getMessaging, type Messaging } from 'firebase/messaging';
-import appletConfig from '../../firebase-applet-config.json';
+// Safely load local applet config if it exists (using Vite glob to prevent build failures when excluded in production pipelines)
+const appletConfigFiles = import.meta.glob('../../firebase-applet-config.json', { eager: true });
+const appletConfigKey = Object.keys(appletConfigFiles)[0];
+const appletConfig: any = appletConfigKey ? (appletConfigFiles[appletConfigKey] as any).default : {};
 
 // Helper to access env vars safely across SSR, Next.js, and Vite runtimes
 const getEnvVar = (key: string): string => {
