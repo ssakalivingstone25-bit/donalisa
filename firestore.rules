@@ -57,7 +57,12 @@ service cloud.firestore {
              data.duration is number && data.duration > 0 &&
              data.releaseYear is number && data.releaseYear >= 1900 &&
              data.rating is string && data.rating.size() <= 16 &&
-             data.categories is list && data.categories.size() <= 20;
+             data.categories is list && data.categories.size() <= 20 &&
+             (!('type' in data) || (data.type is string && data.type.size() <= 32)) &&
+             (!('artist' in data) || (data.artist is string && data.artist.size() <= 256)) &&
+             (!('uploadedBy' in data) || (data.uploadedBy is string && data.uploadedBy.size() <= 128)) &&
+             (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64)) &&
+             (!('backdropUrl' in data) || (data.backdropUrl is string && data.backdropUrl.size() <= 1024));
     }
 
     function isValidRating(data) {

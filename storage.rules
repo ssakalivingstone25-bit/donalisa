@@ -27,6 +27,10 @@ service firebase.storage {
       return request.resource.contentType.matches('video/.*') && request.resource.size < 4 * 1024 * 1024 * 1024; // < 4GB
     }
 
+    function isValidAudio() {
+      return request.resource.contentType.matches('audio/.*') && request.resource.size < 1 * 1024 * 1024 * 1024; // < 1GB
+    }
+
     function isValidSubtitle() {
       return request.resource.contentType.matches('.*text.*') || request.resource.contentType.matches('.*vtt.*') || request.resource.contentType.matches('.*srt.*');
     }
@@ -34,7 +38,17 @@ service firebase.storage {
     // Public Assets (Read-only for users, CRUD for Admins)
     match /movies/{allPaths=**} {
       allow read: if isSignedIn();
-      allow write: if isAdmin() && isValidVideo();
+      allow write: if isAdmin() && (isValidVideo() || isValidAudio());
+    }
+
+    match /music/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && (isValidVideo() || isValidAudio());
+    }
+
+    match /ads/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && (isValidImage() || isValidVideo() || isValidAudio());
     }
 
     match /trailers/{allPaths=**} {

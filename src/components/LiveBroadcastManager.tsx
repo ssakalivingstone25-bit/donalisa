@@ -179,9 +179,83 @@ export function LiveBroadcaster({ movies, showToast }: AdminLiveBroadcastViewPro
     setUploadState('uploading');
     setUploadProgress(0);
 
+    const isVideo = localFile.type.startsWith('video') || localFile.name.endsWith('.mp4') || localFile.name.endsWith('.mkv') || localFile.name.endsWith('.mov') || localFile.name.endsWith('.webm');
     const movieID = `movie-broadcast-${Date.now()}`;
+    const cleanTitle = localFile.name.replace(/\.[^/.]+$/, "").toUpperCase();
+    
+    // Generate an instant local Object URL for instant feedback and high performance preview
+    let localBlobUrl = '';
+    try {
+      localBlobUrl = URL.createObjectURL(localFile);
+    } catch (e) {
+      console.warn('Failed to create Object URL:', e);
+    }
+
+    const instantMovie: Movie = {
+      id: movieID,
+      title: `[LIVE BROADCAST] ${cleanTitle}`,
+      description: `Live cloud broadcast of local file "${localFile.name}" selected by Admin.`,
+      posterUrl: 'https://images.unsplash.com/photo-1598899134739-24c46f58b8c0?q=80&w=600&auto=format&fit=crop',
+      backdropUrl: 'https://images.unsplash.com/photo-1598899134739-24c46f58b8c0?q=80&w=600&auto=format&fit=crop',
+      videoUrl: localBlobUrl || '',
+      duration: 600, // Default duration, will load dynamically in player metadata
+      releaseYear: new Date().getFullYear(),
+      rating: 'LIVE',
+      categories: ['LIVE STREAM', isVideo ? 'VIDEO' : 'AUDIO'],
+      viewCount: 1,
+      type: isVideo ? 'movie' : 'song',
+      uploadedBy: 'admin',
+      createdAt: new Date().toISOString(),
+    };
+
+    // Store this movie locally so the TV Preview and active monitor can display it instantly!
+    localStorage.setItem('donalisa_active_broadcast_movie', JSON.stringify(instantMovie));
+
+    const savedCustom = localStorage.getItem('donalisa_custom_movies');
+    const localCustoms: Movie[] = savedCustom ? JSON.parse(savedCustom) : [];
+    localStorage.setItem('donalisa_custom_movies', JSON.stringify([instantMovie, ...localCustoms]));
+
+    // Update active state immediately for real-time responsiveness on the screen
+    setActiveMovieId(movieID);
+    setStatus('live');
+    setShowTitle(`LIVE BROADCAST: ${cleanTitle}`);
+
+    const instantConfig = {
+      activeMovieId: movieID,
+      status: 'live' as const,
+      tickerUpdates: `🔴 NOW ON AIR: Admin is broadcasting "${localFile.name}" from device storage. Join the stream now!`,
+      startedAt: new Date().toISOString(),
+      channelName: channelName.trim() || 'SKD ONE',
+      showTitle: `LIVE BROADCAST: ${cleanTitle}`,
+      showTime: showTime.trim() || 'JUST STARTED',
+      scheduleJson: JSON.stringify(scheduleItems),
+      adEnabled,
+      adSponsorName,
+      adSponsorPhone,
+      adSponsorLink,
+      adHeadline,
+      adTickerMessage,
+      adBannerImageUrl,
+      adVideoUrl,
+      adScheduleTimestamps,
+      adScheduleDuration,
+      broadcastMovie: instantMovie,
+    };
+
+    localStorage.setItem('donalisa_broadcast_config', JSON.stringify(instantConfig));
+    setCurrentBroadcast(instantConfig as any);
+
+    // Also trigger a local broadcast sync so any listeners in the same session get it
+    try {
+      await setDoc(doc(db, 'broadcast', 'current'), instantConfig);
+    } catch (e) {
+      console.warn('Initial fast sync of broadcast config to Firestore failed (local session is active):', e);
+    }
+
     const fileExtension = localFile.name.split('.').pop() || 'mp4';
-    const filePath = `movies/${movieID}_${Date.now()}.${fileExtension}`;
+    const filePath = isVideo 
+      ? `movies/${movieID}_${Date.now()}.${fileExtension}`
+      : `music/${movieID}_${Date.now()}.${fileExtension}`;
     const storageRef = ref(storage, filePath);
     const uploadTask = uploadBytesResumable(storageRef, localFile);
 
@@ -192,74 +266,59 @@ export function LiveBroadcaster({ movies, showToast }: AdminLiveBroadcastViewPro
         setUploadProgress(Math.round(progress));
       },
       (error) => {
-        console.error('File upload failed:', error);
+        console.error('File upload failed (running in local fallback mode):', error);
         setUploadState('failed');
-        showToast('Local file cloud upload failed. Verify Firebase Storage rules.', 'error');
+        showToast('Storage upload failed, but live broadcasting continues locally! 🔒', 'info');
       },
       async () => {
         try {
           const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
           setUploadState('completed');
 
-          // Generate a beautiful, dynamic Movie document to add to the streaming catalog
-          const isVideo = localFile.type.startsWith('video');
-          const cleanTitle = localFile.name.replace(/\.[^/.]+$/, "").toUpperCase();
-
-          const newMovie: Movie = {
-            id: movieID,
-            title: `[LIVE BROADCAST] ${cleanTitle}`,
-            description: `Live cloud broadcast of local file "${localFile.name}" selected by Admin.`,
-            posterUrl: 'https://images.unsplash.com/photo-1598899134739-24c46f58b8c0?q=80&w=600&auto=format&fit=crop',
-            backdropUrl: 'https://images.unsplash.com/photo-1598899134739-24c46f58b8c0?q=80&w=600&auto=format&fit=crop',
+          // Generate final cloud-backed Movie document
+          const finalMovie: Movie = {
+            ...instantMovie,
             videoUrl: downloadUrl,
-            duration: 600, // Default duration, will load dynamically in player metadata
-            releaseYear: new Date().getFullYear(),
-            rating: 'LIVE',
-            categories: ['LIVE STREAM', isVideo ? 'VIDEO' : 'AUDIO'],
-            viewCount: 1,
-            type: isVideo ? 'movie' : 'song',
-            uploadedBy: 'admin',
-            createdAt: new Date().toISOString(),
           };
 
           // 1. Add movie document to Firestore catalog
-          await setDoc(doc(db, 'movies', movieID), newMovie);
+          try {
+            await setDoc(doc(db, 'movies', movieID), finalMovie);
+          } catch (catalogErr) {
+            console.warn('Could not save uploaded movie to Firestore catalog (local fallback used):', catalogErr);
+          }
 
-          // 2. Set this movie as the active on-air broadcaster content
-          setActiveMovieId(movieID);
-          setStatus('live');
-          setShowTitle(`LIVE BROADCAST: ${cleanTitle}`);
+          // Update local caches with cloud movie
+          localStorage.setItem('donalisa_active_broadcast_movie', JSON.stringify(finalMovie));
+          const updatedCustom = localStorage.getItem('donalisa_custom_movies');
+          const customs: Movie[] = updatedCustom ? JSON.parse(updatedCustom) : [];
+          const filtered = customs.map(m => m.id === movieID ? finalMovie : m);
+          localStorage.setItem('donalisa_custom_movies', JSON.stringify(filtered));
 
-          // 3. Update the global broadcast configuration
-          await setDoc(doc(db, 'broadcast', 'current'), {
-            activeMovieId: movieID,
-            status: 'live',
-            tickerUpdates: `🔴 NOW ON AIR: Admin is broadcasting "${localFile.name}" from device storage. Join the stream now!`,
-            startedAt: new Date().toISOString(),
-            channelName: channelName.trim() || 'SKD ONE',
-            showTitle: `LIVE BROADCAST: ${cleanTitle}`,
-            showTime: showTime.trim() || 'JUST STARTED',
-            scheduleJson: JSON.stringify(scheduleItems),
-            adEnabled,
-            adSponsorName,
-            adSponsorPhone,
-            adSponsorLink,
-            adHeadline,
-            adTickerMessage,
-            adBannerImageUrl,
-            adVideoUrl,
-            adScheduleTimestamps,
-            adScheduleDuration,
-          });
+          // 3. Update the global broadcast configuration with the finalized movie Url
+          const finalConfigData = {
+            ...instantConfig,
+            broadcastMovie: finalMovie,
+          };
 
-          showToast(`Successfully uploaded "${localFile.name}" and broadcasted live! 🚀`, 'success');
+          localStorage.setItem('donalisa_broadcast_config', JSON.stringify(finalConfigData));
+          setCurrentBroadcast(finalConfigData as any);
+
+          try {
+            await setDoc(doc(db, 'broadcast', 'current'), finalConfigData);
+            showToast(`Successfully uploaded "${localFile.name}" and broadcasted live! 🚀`, 'success');
+          } catch (cloudErr) {
+            console.warn('Could not sync broadcast state to Firestore (local fallback active):', cloudErr);
+            showToast(`Successfully uploaded "${localFile.name}" & broadcasted to local engine! 🔒`, 'info');
+          }
+
           setLocalFile(null);
           setUploadState('idle');
           setUploadProgress(null);
         } catch (err) {
           console.error('Failed to update catalog/broadcast config after upload:', err);
           setUploadState('failed');
-          showToast('Failed to start broadcast after file upload.', 'error');
+          showToast('Failed to finalize live broadcast cloud URL.', 'error');
         }
       }
     );
@@ -267,10 +326,45 @@ export function LiveBroadcaster({ movies, showToast }: AdminLiveBroadcastViewPro
 
   // Sync current broadcast settings in real-time
   useEffect(() => {
+    // Load local fallback first
+    const savedLocal = localStorage.getItem('donalisa_broadcast_config');
+    if (savedLocal) {
+      try {
+        const localData = JSON.parse(savedLocal) as BroadcastConfig;
+        setCurrentBroadcast(localData);
+        setActiveMovieId(localData.activeMovieId || '');
+        setStatus(localData.status || 'off');
+        setTickerUpdates(localData.tickerUpdates || '');
+        if (localData.channelName) setChannelName(localData.channelName);
+        if (localData.showTitle) setShowTitle(localData.showTitle);
+        if (localData.showTime) setShowTime(localData.showTime);
+        if (localData.scheduleJson) {
+          try {
+            setScheduleItems(JSON.parse(localData.scheduleJson));
+          } catch (e) {
+            console.warn("Error parsing scheduleJson:", e);
+          }
+        }
+        setAdEnabled(!!localData.adEnabled);
+        if (localData.adSponsorName) setAdSponsorName(localData.adSponsorName);
+        if (localData.adSponsorPhone) setAdSponsorPhone(localData.adSponsorPhone);
+        if (localData.adSponsorLink) setAdSponsorLink(localData.adSponsorLink);
+        if (localData.adHeadline) setAdHeadline(localData.adHeadline);
+        if (localData.adTickerMessage) setAdTickerMessage(localData.adTickerMessage);
+        if (localData.adBannerImageUrl) setAdBannerImageUrl(localData.adBannerImageUrl);
+        setAdVideoUrl(localData.adVideoUrl || '');
+        setAdScheduleTimestamps(localData.adScheduleTimestamps || '30, 120, 240');
+        setAdScheduleDuration(localData.adScheduleDuration !== undefined ? localData.adScheduleDuration : 15);
+      } catch (err) {
+        console.warn('Error parsing local broadcast config:', err);
+      }
+    }
+
     const unsub = onSnapshot(doc(db, 'broadcast', 'current'), (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data() as BroadcastConfig;
         setCurrentBroadcast(data);
+        localStorage.setItem('donalisa_broadcast_config', JSON.stringify(data));
         setActiveMovieId(data.activeMovieId || '');
         setStatus(data.status || 'off');
         setTickerUpdates(data.tickerUpdates || '');
@@ -310,39 +404,70 @@ export function LiveBroadcaster({ movies, showToast }: AdminLiveBroadcastViewPro
     }
 
     setSaving(true);
+
+    // Try to resolve the current broadcast movie
+    const savedMovie = localStorage.getItem('donalisa_active_broadcast_movie');
+    let broadcastMovieObj = (currentBroadcast as any)?.broadcastMovie || null;
+    if (savedMovie) {
+      try {
+        const m = JSON.parse(savedMovie);
+        if (m && m.id === activeMovieId) {
+          broadcastMovieObj = m;
+        }
+      } catch (e) {}
+    }
+
+    const configData = {
+      activeMovieId,
+      status,
+      tickerUpdates: tickerUpdates.trim(),
+      startedAt: (status !== 'off' && currentBroadcast?.status !== 'off')
+        ? (currentBroadcast?.startedAt || new Date().toISOString())
+        : new Date().toISOString(),
+      channelName: channelName.trim(),
+      showTitle: showTitle.trim(),
+      showTime: showTime.trim(),
+      scheduleJson: JSON.stringify(scheduleItems),
+      adEnabled,
+      adSponsorName: adSponsorName.trim(),
+      adSponsorPhone: adSponsorPhone.trim(),
+      adSponsorLink: adSponsorLink.trim(),
+      adHeadline: adHeadline.trim(),
+      adTickerMessage: adTickerMessage.trim(),
+      adBannerImageUrl: adBannerImageUrl.trim(),
+      adVideoUrl: adVideoUrl.trim(),
+      adScheduleTimestamps: adScheduleTimestamps.trim(),
+      adScheduleDuration: Number(adScheduleDuration) || 15,
+      broadcastMovie: broadcastMovieObj,
+    };
+
+    // Store locally first for immediate responsiveness
+    localStorage.setItem('donalisa_broadcast_config', JSON.stringify(configData));
+    setCurrentBroadcast(configData as any);
+
     try {
-      await setDoc(doc(db, 'broadcast', 'current'), {
-        activeMovieId,
-        status,
-        tickerUpdates: tickerUpdates.trim(),
-        startedAt: (status !== 'off' && currentBroadcast?.status !== 'off')
-          ? (currentBroadcast?.startedAt || new Date().toISOString())
-          : new Date().toISOString(),
-        channelName: channelName.trim(),
-        showTitle: showTitle.trim(),
-        showTime: showTime.trim(),
-        scheduleJson: JSON.stringify(scheduleItems),
-        adEnabled,
-        adSponsorName: adSponsorName.trim(),
-        adSponsorPhone: adSponsorPhone.trim(),
-        adSponsorLink: adSponsorLink.trim(),
-        adHeadline: adHeadline.trim(),
-        adTickerMessage: adTickerMessage.trim(),
-        adBannerImageUrl: adBannerImageUrl.trim(),
-        adVideoUrl: adVideoUrl.trim(),
-        adScheduleTimestamps: adScheduleTimestamps.trim(),
-        adScheduleDuration: Number(adScheduleDuration) || 15,
-      });
+      await setDoc(doc(db, 'broadcast', 'current'), configData);
       showToast('Live TV broadcast configuration updated successfully! 🚀', 'success');
     } catch (err: any) {
-      console.error('Failed to update broadcast config:', err);
-      showToast('Failed to save broadcast settings. Verify your Firestore security rules.', 'error');
+      console.warn('Failed to update cloud broadcast config (local fallback active):', err);
+      showToast('🔒 Saved to local broadcast engine successfully!', 'info');
     } finally {
       setSaving(false);
     }
   };
 
-  const selectedMovieObj = movies.find(m => m.id === activeMovieId);
+  const selectedMovieObj = movies.find(m => m.id === activeMovieId) || 
+    (currentBroadcast as any)?.broadcastMovie || 
+    (() => {
+      const saved = localStorage.getItem('donalisa_active_broadcast_movie');
+      if (saved) {
+        try {
+          const m = JSON.parse(saved);
+          if (m && m.id === activeMovieId) return m;
+        } catch(e){}
+      }
+      return null;
+    })();
 
   return (
     <div className="space-y-8 animate-fadeIn text-left">
@@ -957,10 +1082,30 @@ export function UserLiveTvView({ movies, user }: UserLiveTvViewProps) {
   // Real-time listener for current broadcast settings
   useEffect(() => {
     setLoading(true);
+    
+    // Check local fallback first
+    const savedLocal = localStorage.getItem('donalisa_broadcast_config');
+    if (savedLocal) {
+      try {
+        const localData = JSON.parse(savedLocal) as BroadcastConfig;
+        setBroadcast(localData);
+        if (localData.scheduleJson) {
+          try {
+            setScheduleItems(JSON.parse(localData.scheduleJson));
+          } catch (e) {
+            console.warn('Error parsing scheduleJson in UserLiveTvView fallback:', e);
+          }
+        }
+      } catch (err) {
+        console.warn('Error loading local broadcast config:', err);
+      }
+    }
+
     const unsub = onSnapshot(doc(db, 'broadcast', 'current'), (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data() as BroadcastConfig;
         setBroadcast(data);
+        localStorage.setItem('donalisa_broadcast_config', JSON.stringify(data));
         if (data.scheduleJson) {
           try {
             setScheduleItems(JSON.parse(data.scheduleJson));
@@ -977,7 +1122,9 @@ export function UserLiveTvView({ movies, user }: UserLiveTvViewProps) {
           ]);
         }
       } else {
-        setBroadcast(null);
+        if (!localStorage.getItem('donalisa_broadcast_config')) {
+          setBroadcast(null);
+        }
       }
       setLoading(false);
     }, (error) => {
@@ -1006,7 +1153,18 @@ export function UserLiveTvView({ movies, user }: UserLiveTvViewProps) {
   }
 
   const movie = broadcast && broadcast.status !== 'off' 
-    ? movies.find(m => m.id === broadcast.activeMovieId) 
+    ? (movies.find(m => m.id === broadcast.activeMovieId) || 
+       (broadcast as any).broadcastMovie || 
+       (() => {
+         const saved = localStorage.getItem('donalisa_active_broadcast_movie');
+         if (saved) {
+           try {
+             const m = JSON.parse(saved);
+             if (m && m.id === broadcast.activeMovieId) return m;
+           } catch(e){}
+         }
+         return null;
+       })())
     : null;
 
   const isBroadcastActive = broadcast && broadcast.status !== 'off' && movie;

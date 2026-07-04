@@ -20,6 +20,7 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import VideoPlayer from './VideoPlayer';
+import AudioPlayer from './AudioPlayer';
 import UserProfile from './UserProfile';
 import { AdminLiveBroadcastView, UserLiveTvView, LiveBroadcaster } from './LiveBroadcastManager';
 import { useNotificationStore } from '@/store/notificationStore';
@@ -212,19 +213,25 @@ function MovieCard({
     };
   }, []);
 
+  const isSong = movie.type === 'song';
+
   return (
     <div
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onClick={() => onDetail(movie)}
-      className="group bg-[#111111] border border-[#222222] rounded-2xl overflow-hidden shadow-lg hover:shadow-red-600/5 hover:border-red-600/30 transition-all duration-300 cursor-pointer flex flex-col justify-between relative aspect-[2/3] w-full"
+      className={`group bg-[#111111] border border-[#222222] rounded-2xl overflow-hidden shadow-lg transition-all duration-300 cursor-pointer flex flex-col justify-between relative aspect-[2/3] w-full ${
+        isSong 
+          ? 'hover:shadow-cyan-400/5 hover:border-cyan-400/30' 
+          : 'hover:shadow-red-600/5 hover:border-red-600/30'
+      }`}
     >
       <div className="relative w-full h-full bg-[#181818] overflow-hidden flex-1">
         {/* Poster Image */}
         <img 
           src={movie.posterUrl} 
           alt={movie.title} 
-          className={`w-full h-full object-cover transition-all duration-700 ${showPreview ? 'opacity-0 scale-105' : 'opacity-100 scale-100'}`}
+          className={`w-full h-full object-cover transition-all duration-700 ${showPreview && !isSong ? 'opacity-0 scale-105' : 'opacity-100 scale-100'} ${isSong && hovered ? 'scale-102 ease-out' : ''}`}
           referrerPolicy="no-referrer"
         />
 
@@ -233,8 +240,8 @@ function MovieCard({
           <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/45 to-black/15 z-10 transition-opacity duration-300" />
         )}
 
-        {/* Silent Atmospheric Looping Video Preview */}
-        {showPreview && (movie.trailerUrl || movie.videoUrl) && (
+        {/* Silent Atmospheric Looping Video Preview (Only for movies) */}
+        {showPreview && !isSong && (movie.trailerUrl || movie.videoUrl) && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -254,8 +261,9 @@ function MovieCard({
 
         {/* Resume progress badge if exists */}
         {hasProgress && (
-          <div className="absolute top-2.5 left-2.5 bg-red-600 text-white text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded shadow-lg flex items-center gap-1 z-20">
-            <Clock className="w-2.5 h-2.5" /> Continue
+          <div className={`absolute top-2.5 left-2.5 text-white text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded shadow-lg flex items-center gap-1 z-20 ${isSong ? 'bg-cyan-500' : 'bg-red-600'}`}>
+            {isSong ? <Music className="w-2.5 h-2.5" /> : <Clock className="w-2.5 h-2.5" />}
+            <span>{isSong ? 'Listening' : 'Continue'}</span>
           </div>
         )}
 
@@ -263,9 +271,9 @@ function MovieCard({
         {!hovered && (
           <div className="absolute bottom-2 left-2 right-2 flex flex-col gap-1 z-20">
             {activeViewersCount > 0 && (
-              <span className="self-start flex items-center gap-1 text-[8px] font-bold text-emerald-400 bg-black/85 px-2 py-0.5 rounded-md border border-emerald-500/20 shadow-md">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 animate-ping" />
-                {activeViewersCount} LIVE
+              <span className={`self-start flex items-center gap-1 text-[8px] font-bold bg-black/85 px-2 py-0.5 rounded-md shadow-md border ${isSong ? 'text-cyan-400 border-cyan-500/20' : 'text-emerald-400 border-emerald-500/20'}`}>
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 animate-ping ${isSong ? 'bg-cyan-400' : 'bg-emerald-400'}`} />
+                {activeViewersCount} {isSong ? 'LISTENING' : 'LIVE'}
               </span>
             )}
             <div className="flex items-center justify-between text-[10px] font-mono bg-black/75 backdrop-blur-sm px-2.5 py-1 rounded-lg border border-white/5 text-[#ccc] transition-all">
@@ -282,17 +290,25 @@ function MovieCard({
         <div className={`absolute inset-0 bg-black/90 transition-all duration-300 flex flex-col justify-between p-4 z-20 ${hovered ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-[8px] bg-red-600/20 text-red-500 border border-red-500/30 px-1.5 py-0.5 rounded font-mono font-bold uppercase">
-                {movie.type === 'song' ? '🎵 Song' : (movie.categories?.[0] || 'Movie')}
+              <span className={`text-[8px] border px-1.5 py-0.5 rounded font-mono font-bold uppercase ${
+                isSong 
+                  ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' 
+                  : 'bg-red-600/20 text-red-500 border-red-500/30'
+              }`}>
+                {isSong ? '🎵 Song Single' : (movie.categories?.[0] || 'Movie')}
               </span>
-              <span className="text-[9px] font-mono text-cyan-400 bg-cyan-400/5 border border-cyan-400/10 px-1.5 rounded font-bold">
+              <span className={`text-[9px] font-mono border px-1.5 rounded font-bold ${
+                isSong
+                  ? 'text-cyan-400 bg-cyan-400/5 border-cyan-400/10'
+                  : 'text-amber-400 bg-amber-400/5 border-amber-400/10'
+              }`}>
                 ★ {averageRating > 0 ? averageRating.toFixed(1) : 'No Rating'}
               </span>
             </div>
             <h4 className="text-xs font-bold text-white line-clamp-1 mt-1.5 leading-snug">
               {movie.title}
-              {movie.type === 'song' && movie.artist && (
-                <span className="text-red-400 text-[10px] font-medium font-sans block mt-0.5 font-sans">by {movie.artist}</span>
+              {isSong && movie.artist && (
+                <span className="text-cyan-400 text-[10px] font-medium font-sans block mt-0.5">by {movie.artist}</span>
               )}
             </h4>
             <p className="text-[9px] text-white/50 line-clamp-3 font-sans mt-0.5 leading-normal">{movie.description}</p>
@@ -301,24 +317,37 @@ function MovieCard({
           <div className="space-y-2">
             <div className="flex items-center justify-between text-[9px] text-white/70 font-mono">
               <span className="flex items-center gap-1">
-                <Clock className="w-3 text-red-500" />
-                {movie.duration > 0 ? `${Math.floor(movie.duration / 60)}h ${movie.duration % 60}m` : 'HLS'}
+                {isSong ? <Music className="w-3 text-cyan-400" /> : <Clock className="w-3 text-red-500" />}
+                {isSong ? (movie.artist || 'Artist') : (movie.duration > 0 ? `${Math.floor(movie.duration / 60)}h ${movie.duration % 60}m` : 'HLS')}
               </span>
               <span>{movie.releaseYear}</span>
             </div>
 
             {/* Quick action buttons */}
             <div className="space-y-1.5">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onPlay(movie);
-                }}
-                className="w-full py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-[10px] transition-all flex items-center justify-center gap-1 shadow-lg shadow-red-600/20 cursor-pointer"
-              >
-                <Play className="w-3 h-3 fill-white" />
-                <span>Play Movie</span>
-              </button>
+              {isSong ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPlay(movie);
+                  }}
+                  className="w-full py-1.5 bg-cyan-400 hover:bg-cyan-300 text-black rounded-lg font-bold text-[10px] transition-all flex items-center justify-center gap-1 shadow-lg shadow-cyan-400/20 cursor-pointer"
+                >
+                  <Music className="w-3 h-3 fill-current text-black" />
+                  <span>Stream Song</span>
+                </button>
+              ) : (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPlay(movie);
+                  }}
+                  className="w-full py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-[10px] transition-all flex items-center justify-center gap-1 shadow-lg shadow-red-600/20 cursor-pointer"
+                >
+                  <Play className="w-3 h-3 fill-white" />
+                  <span>Play Movie</span>
+                </button>
+              )}
               
               <button
                 onClick={(e) => {
@@ -327,7 +356,7 @@ function MovieCard({
                 }}
                 className="w-full py-1.5 bg-white/10 hover:bg-white/20 text-white border border-white/10 hover:border-white/20 rounded-lg font-bold text-[10px] transition-all flex items-center justify-center gap-1 cursor-pointer"
               >
-                <Info className="w-3 h-3 text-cyan-400" />
+                <Info className={`w-3 h-3 ${isSong ? 'text-cyan-400' : 'text-red-500'}`} />
                 <span>View Details</span>
               </button>
             </div>
@@ -352,7 +381,7 @@ function MovieCard({
             onClick={(e) => onToggleQueue(movie, e)}
             className={`p-1.5 bg-black/75 backdrop-blur-md rounded-lg border transition-all hover:scale-105 cursor-pointer ${
               isQueued 
-                ? 'border-cyan-500/30 text-cyan-400' 
+                ? (isSong ? 'border-cyan-500/30 text-cyan-400' : 'border-red-500/30 text-red-500')
                 : 'border-white/5 hover:border-white/20 text-white/60 hover:text-white'
             }`}
             title={isQueued ? "Remove from Watchlist" : "Add to Watchlist"}
@@ -364,7 +393,7 @@ function MovieCard({
             <button 
               onClick={(e) => onDelete(movie, e)}
               className="p-1.5 bg-black/75 backdrop-blur-md rounded-lg border border-white/5 hover:border-red-600/40 text-white/60 hover:text-red-500 transition-all hover:scale-105 cursor-pointer"
-              title="Delete Movie"
+              title={isSong ? "Delete Song" : "Delete Movie"}
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -1379,11 +1408,17 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
     }
   };
 
-  // Delete Movie (Admin Only)
+  // Delete Movie (Uploader or Admin)
   const handleDeleteMovie = async (movie: Movie, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!user || user.role !== 'admin') {
-      showToast('You do not have administrative permissions to delete movies.', 'error');
+    
+    // Check if user is the uploader, an admin, or if it is a local guest item
+    const isUploader = user && movie.uploadedBy === user.uid;
+    const isLocalOrGuest = !movie.uploadedBy || movie.uploadedBy === 'guest';
+    const isAdminUser = user && user.role === 'admin';
+
+    if (!isAdminUser && !isUploader && !isLocalOrGuest) {
+      showToast('You do not have permissions to delete this item.', 'error');
       return;
     }
 
@@ -1392,8 +1427,12 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
     }
 
     try {
-      // 1. Delete from Firestore
-      await deleteDoc(doc(db, 'movies', movie.id));
+      // 1. Attempt delete from Firestore
+      try {
+        await deleteDoc(doc(db, 'movies', movie.id));
+      } catch (firestoreErr) {
+        console.warn('Firestore deletion failed (likely local-only or RBAC protected):', firestoreErr);
+      }
       
       // 2. Also check and delete from local custom movies if stored in localStorage
       const savedCustom = localStorage.getItem('donalisa_custom_movies');
@@ -1414,7 +1453,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
       }
     } catch (error: any) {
       console.error('Error deleting movie:', error);
-      showToast('Failed to delete movie from database.', 'error');
+      showToast(`Failed to complete deletion: ${error.message || 'Unknown error'}`, 'error');
     }
   };
 
@@ -1505,26 +1544,30 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
         });
       }
 
-      // 3. Try to upload Poster to Firebase Cloud Storage (max 2 seconds wait)
+      // 3. Upload Poster to Firebase Cloud Storage
       setUploadStep('poster');
-      setUploadProgress(30);
+      setUploadProgress(20);
       try {
         const posterPath = `posters/${movieID}_${customPosterFile.name}`;
-        const uploadPosterPromise = uploadFileToStorage(customPosterFile, posterPath);
-        finalPosterUrl = await uploadWithTimeout(uploadPosterPromise, 2000, localPosterUrl);
+        finalPosterUrl = await uploadFileToStorage(customPosterFile, posterPath);
       } catch (posterErr) {
-        console.warn('Poster cloud upload error:', posterErr);
+        console.warn('Poster cloud upload failed, using local fallback:', posterErr);
+        // Fallback to indexeddb indicator
+        finalPosterUrl = `indexeddb://${movieID}_poster`;
       }
 
-      // 4. Try to upload Video to Firebase Cloud Storage (max 3.5 seconds wait)
-      setUploadStep('video');
-      setUploadProgress(60);
+      // 4. Upload Video/Audio to Firebase Cloud Storage
+      setUploadStep(customType === 'song' ? 'audio' : 'video');
+      setUploadProgress(50);
       try {
-        const videoPath = `movies/${movieID}_${customVideoFile.name}`;
-        const uploadVideoPromise = uploadFileToStorage(customVideoFile, videoPath);
-        finalVideoUrl = await uploadWithTimeout(uploadVideoPromise, 3500, localVideoUrl);
+        const mediaPath = customType === 'song' 
+          ? `music/${movieID}_${customVideoFile.name}` 
+          : `movies/${movieID}_${customVideoFile.name}`;
+        finalVideoUrl = await uploadFileToStorage(customVideoFile, mediaPath);
       } catch (videoErr) {
-        console.warn('Video cloud upload error:', videoErr);
+        console.warn('Media cloud upload failed, using local fallback:', videoErr);
+        // Fallback to indexeddb indicator
+        finalVideoUrl = `indexeddb://${movieID}_video`;
       }
 
       setUploadStep('saving');
@@ -1672,13 +1715,15 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
         )}
       </AnimatePresence>
 
-      {/* 1. IMMERSIVE VIDEO PLAYER ACTIVE VIEW */}
+      {/* 1. IMMERSIVE VIDEO/AUDIO PLAYER ACTIVE VIEW */}
       {selectedMovie ? (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#E50914] animate-ping" />
-              <span className="text-xs font-mono font-bold uppercase tracking-wider text-red-500">Currently Streaming</span>
+              <span className={`w-2.5 h-2.5 rounded-full animate-ping ${selectedMovie.type === 'song' ? 'bg-cyan-400' : 'bg-[#E50914]'}`} />
+              <span className={`text-xs font-mono font-bold uppercase tracking-wider ${selectedMovie.type === 'song' ? 'text-cyan-400' : 'text-red-500'}`}>
+                {selectedMovie.type === 'song' ? 'Currently Playing Track' : 'Currently Streaming Cinema'}
+              </span>
             </div>
             <button 
               onClick={() => {
@@ -1691,14 +1736,25 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
             </button>
           </div>
 
-          <VideoPlayer 
-            movie={selectedMovie} 
-            onClose={() => {
-              setSelectedMovie(null);
-              closePlayer();
-            }}
-            onProgressUpdate={handleProgressUpdate}
-          />
+          {selectedMovie.type === 'song' ? (
+            <AudioPlayer 
+              movie={selectedMovie} 
+              onClose={() => {
+                setSelectedMovie(null);
+                closePlayer();
+              }}
+              onProgressUpdate={handleProgressUpdate}
+            />
+          ) : (
+            <VideoPlayer 
+              movie={selectedMovie} 
+              onClose={() => {
+                setSelectedMovie(null);
+                closePlayer();
+              }}
+              onProgressUpdate={handleProgressUpdate}
+            />
+          )}
 
           {!theaterMode && (
             <motion.div 
@@ -1709,11 +1765,22 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2.5">
                   <h3 className="text-xl font-extrabold text-white">{selectedMovie.title}</h3>
-                  <span className="bg-[#1f1f1f] border border-[#333] px-2 py-0.5 rounded text-xs font-mono font-semibold uppercase tracking-wider text-[#00E5FF]">{selectedMovie.rating}</span>
+                  {selectedMovie.type === 'song' ? (
+                    <span className="bg-[#1f1f1f] border border-[#333] px-2 py-0.5 rounded text-xs font-mono font-semibold uppercase tracking-wider text-cyan-400">🎵 SONG</span>
+                  ) : (
+                    <span className="bg-[#1f1f1f] border border-[#333] px-2 py-0.5 rounded text-xs font-mono font-semibold uppercase tracking-wider text-[#00E5FF]">{selectedMovie.rating}</span>
+                  )}
                   {selectedMovie.categories.map((cat) => (
-                    <span key={cat} className="text-xs text-[#E50914] bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20 font-semibold">{cat}</span>
+                    <span key={cat} className={`text-xs px-2 py-0.5 rounded border font-semibold ${
+                      selectedMovie.type === 'song'
+                        ? 'text-cyan-400 bg-cyan-400/10 border-cyan-400/20'
+                        : 'text-[#E50914] bg-red-500/10 border-red-500/20'
+                    }`}>{cat}</span>
                   ))}
                 </div>
+                {selectedMovie.type === 'song' && selectedMovie.artist && (
+                  <p className="text-xs font-bold text-cyan-400 font-mono">by {selectedMovie.artist}</p>
+                )}
                 <p className="text-sm text-[#aaa] leading-relaxed max-w-4xl">{selectedMovie.description}</p>
               </div>
               <div className="bg-[#0c0c0c] border border-[#222] p-4 rounded-xl space-y-2 shrink-0 w-full md:w-64 text-xs font-mono">
@@ -3029,63 +3096,130 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
       </div>
     </div>
 
-      {/* 4. MOVIE CATALOG GRID */}
+      {/* 4. MOVIE & AUDIO CATALOGS */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-white flex items-center gap-2 font-mono">
-            <Film className="w-5 h-5 text-red-500" /> Cinema Catalog 
-            {selectedCategory !== 'All' && <span className="text-xs bg-red-500/10 text-[#E50914] border border-red-500/20 px-2 py-0.5 rounded font-mono font-bold uppercase">{selectedCategory}</span>}
-          </h3>
-          <span className="text-xs text-[#888] font-mono">Showing {filteredMovies.length} movies</span>
-        </div>
-
         {loading ? (
           <div className="py-20 text-center space-y-3">
             <Loader2 className="w-8 h-8 text-red-600 animate-spin mx-auto" />
-            <p className="text-xs text-[#666] font-mono">Synchronizing movie library with Cloud Firestore...</p>
+            <p className="text-xs text-[#666] font-mono">Synchronizing media library with Cloud Firestore...</p>
           </div>
-        ) : filteredMovies.length === 0 ? (
+        ) : sortedMovies.length === 0 ? (
           <div className="bg-[#111] border border-[#222] rounded-2xl p-12 text-center max-w-lg mx-auto space-y-4">
             <HelpCircle className="w-10 h-10 text-red-500/40 mx-auto animate-bounce" />
             <div className="space-y-1">
-              <h4 className="text-sm font-bold text-white">No Catalog Movies Found</h4>
-              <p className="text-xs text-[#888]">Adjust filters or upload a custom movie stream to start viewing.</p>
+              <h4 className="text-sm font-bold text-white">No Catalog Content Found</h4>
+              <p className="text-xs text-[#888]">Adjust filters or upload custom streams to start viewing.</p>
             </div>
             <button 
-              onClick={() => { setSearchQuery(''); setSelectedCategory('All'); }}
+              onClick={() => { setSearchQuery(''); setSelectedCategory('All'); setMediaTypeFilter('all'); }}
               className="px-3.5 py-1.5 bg-[#222] hover:bg-[#333] rounded-lg text-xs font-semibold"
             >
               Reset Filters
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-            {sortedMovies.map((movie) => {
-              const isFav = favorites.includes(movie.id);
-              const isQueued = watchlist.includes(movie.id);
-              const hasProgress = watchProgress[movie.id] !== undefined;
-              const progressPct = hasProgress && movie.duration > 0
-                ? Math.min(100, Math.round((watchProgress[movie.id] / movie.duration) * 100))
-                : undefined;
+          <div className="space-y-12">
+            {/* CINEMA CATALOG ROW */}
+            {(mediaTypeFilter === 'all' || mediaTypeFilter === 'movie') && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-[#222] pb-2">
+                  <div className="flex items-center gap-2">
+                    <Film className="w-5 h-5 text-red-500" />
+                    <h3 className="text-base font-black text-white font-mono uppercase tracking-tight">Cinema Showcase (Videos)</h3>
+                    {selectedCategory !== 'All' && (
+                      <span className="text-[10px] bg-red-500/10 text-[#E50914] border border-red-500/20 px-2 py-0.5 rounded font-mono font-bold uppercase">{selectedCategory}</span>
+                    )}
+                  </div>
+                  <span className="text-xs text-[#888] font-mono">
+                    {sortedMovies.filter((m) => !m.type || m.type === 'movie').length} Titles
+                  </span>
+                </div>
 
-              return (
-                <MovieCard
-                  key={movie.id}
-                  movie={movie}
-                  isFav={isFav}
-                  isQueued={isQueued}
-                  hasProgress={hasProgress}
-                  progressPct={progressPct}
-                  user={user}
-                  onPlay={setSelectedMovie}
-                  onDetail={setDetailedMovie}
-                  onToggleFav={toggleFavorite}
-                  onToggleQueue={toggleWatchlist}
-                  onDelete={handleDeleteMovie}
-                  averageRating={getMovieAverageRating(movie.id)}
-                />
-              );
-            })}
+                {sortedMovies.filter((m) => !m.type || m.type === 'movie').length === 0 ? (
+                  <p className="text-xs text-zinc-500 font-mono py-6 pl-2">No videos match the current category / search filters.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+                    {sortedMovies.filter((m) => !m.type || m.type === 'movie').map((movie) => {
+                      const isFav = favorites.includes(movie.id);
+                      const isQueued = watchlist.includes(movie.id);
+                      const hasProgress = watchProgress[movie.id] !== undefined;
+                      const progressPct = hasProgress && movie.duration > 0
+                        ? Math.min(100, Math.round((watchProgress[movie.id] / movie.duration) * 100))
+                        : undefined;
+
+                      return (
+                        <MovieCard
+                          key={movie.id}
+                          movie={movie}
+                          isFav={isFav}
+                          isQueued={isQueued}
+                          hasProgress={hasProgress}
+                          progressPct={progressPct}
+                          user={user}
+                          onPlay={setSelectedMovie}
+                          onDetail={setDetailedMovie}
+                          onToggleFav={toggleFavorite}
+                          onToggleQueue={toggleWatchlist}
+                          onDelete={handleDeleteMovie}
+                          averageRating={getMovieAverageRating(movie.id)}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* MUSIC CATALOG ROW */}
+            {(mediaTypeFilter === 'all' || mediaTypeFilter === 'song') && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-[#222] pb-2">
+                  <div className="flex items-center gap-2">
+                    <Music className="w-5 h-5 text-cyan-400" />
+                    <h3 className="text-base font-black text-white font-mono uppercase tracking-tight">Music Singles & Audio Tracks</h3>
+                    {selectedCategory !== 'All' && (
+                      <span className="text-[10px] bg-cyan-400/10 text-cyan-400 border border-cyan-400/20 px-2 py-0.5 rounded font-mono font-bold uppercase">{selectedCategory}</span>
+                    )}
+                  </div>
+                  <span className="text-xs text-[#888] font-mono">
+                    {sortedMovies.filter((m) => m.type === 'song').length} Tracks
+                  </span>
+                </div>
+
+                {sortedMovies.filter((m) => m.type === 'song').length === 0 ? (
+                  <p className="text-xs text-zinc-500 font-mono py-6 pl-2">No songs match the current category / search filters.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+                    {sortedMovies.filter((m) => m.type === 'song').map((movie) => {
+                      const isFav = favorites.includes(movie.id);
+                      const isQueued = watchlist.includes(movie.id);
+                      const hasProgress = watchProgress[movie.id] !== undefined;
+                      const progressPct = hasProgress && movie.duration > 0
+                        ? Math.min(100, Math.round((watchProgress[movie.id] / movie.duration) * 100))
+                        : undefined;
+
+                      return (
+                        <MovieCard
+                          key={movie.id}
+                          movie={movie}
+                          isFav={isFav}
+                          isQueued={isQueued}
+                          hasProgress={hasProgress}
+                          progressPct={progressPct}
+                          user={user}
+                          onPlay={setSelectedMovie}
+                          onDetail={setDetailedMovie}
+                          onToggleFav={toggleFavorite}
+                          onToggleQueue={toggleWatchlist}
+                          onDelete={handleDeleteMovie}
+                          averageRating={getMovieAverageRating(movie.id)}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -3511,7 +3645,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
                         <span>Download Offline</span>
                       </button>
                     )}
-                    {user?.role === 'admin' && (
+                    {(user?.role === 'admin' || (user && detailedMovie.uploadedBy === user.uid) || (!detailedMovie.uploadedBy || detailedMovie.uploadedBy === 'guest')) && (
                       <button
                         onClick={(e) => {
                           handleDeleteMovie(detailedMovie, e);

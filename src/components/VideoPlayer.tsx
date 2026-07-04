@@ -79,6 +79,11 @@ export default function VideoPlayer({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
 
+  const liveOffsetRef = useRef(liveStartTimeOffset);
+  useEffect(() => {
+    liveOffsetRef.current = liveStartTimeOffset;
+  }, [liveStartTimeOffset]);
+
   // Zustand Store Sync
   const { 
     isPlaying, isMuted, volume, currentTime, duration, isFullscreen, theaterMode,
@@ -273,6 +278,12 @@ export default function VideoPlayer({
     if (!video) return;
 
     if (isPlaying) {
+      if (isLiveStream && movie.duration > 0) {
+        const currentOffset = liveOffsetRef.current % movie.duration;
+        if (Math.abs(video.currentTime - currentOffset) > 3) {
+          video.currentTime = currentOffset;
+        }
+      }
       video.play().catch(() => {
         // Auto-play might be blocked
         usePlayerStore.setState({ isPlaying: false });
@@ -280,7 +291,7 @@ export default function VideoPlayer({
     } else {
       video.pause();
     }
-  }, [isPlaying]);
+  }, [isPlaying, isLiveStream, movie.duration]);
 
   // Sync mute and volume states
   useEffect(() => {
@@ -858,11 +869,30 @@ export default function VideoPlayer({
                   </div>
 
                   {/* TIMESTAMPS */}
-                  <div className="text-xs font-mono font-medium text-[#ccc] pl-2">
-                    <span>{formatTime(currentTime)}</span>
-                    <span className="mx-1 text-white/30">/</span>
-                    <span>{formatTime(duration)}</span>
-                  </div>
+                  {isLiveStream ? (
+                    <button
+                      onClick={() => {
+                        const video = videoRef.current;
+                        if (video && movie.duration > 0) {
+                          const currentOffset = liveOffsetRef.current % movie.duration;
+                          video.currentTime = currentOffset;
+                          setCurrentTime(currentOffset);
+                          usePlayerStore.setState({ isPlaying: true });
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-2.5 py-1 bg-red-600 hover:bg-red-500 border border-red-500/20 text-white font-mono text-[9px] font-black rounded-md shadow-lg shadow-red-600/20 tracking-wider uppercase transition-all animate-pulse cursor-pointer shrink-0"
+                      title="Click to sync with real-time on-air broadcast"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-white shrink-0" />
+                      <span>SYNC LIVE</span>
+                    </button>
+                  ) : (
+                    <div className="text-xs font-mono font-medium text-[#ccc] pl-2">
+                      <span>{formatTime(currentTime)}</span>
+                      <span className="mx-1 text-white/30">/</span>
+                      <span>{formatTime(duration)}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* RIGHT BUTTONS */}
