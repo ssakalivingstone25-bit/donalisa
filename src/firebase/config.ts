@@ -23,14 +23,14 @@ const getEnvVar = (key: string): string => {
 
 // 1. Web App Firebase Configuration Template
 export const firebaseConfig = {
-  apiKey: appletConfig.apiKey || "AIzaSyBSIVQxNnyp4ABYCnS6eIoEUbzwLE1XPb4",
-  authDomain: appletConfig.authDomain || "filmox-6620b.firebaseapp.com",
-  projectId: appletConfig.projectId || "filmox-6620b",
-  storageBucket: appletConfig.storageBucket || "filmox-6620b.firebasestorage.app",
-  messagingSenderId: appletConfig.messagingSenderId || "796704468123",
-  appId: appletConfig.appId || "1:796704468123:web:1c07267590cd9996eeea3e",
-  measurementId: appletConfig.measurementId || "G-N9R2QRK0P4",
-  firestoreDatabaseId: appletConfig.firestoreDatabaseId || undefined,
+  apiKey: getEnvVar('VITE_FIREBASE_API_KEY') || appletConfig.apiKey || "",
+  authDomain: getEnvVar('VITE_FIREBASE_AUTH_DOMAIN') || appletConfig.authDomain || "",
+  projectId: getEnvVar('VITE_FIREBASE_PROJECT_ID') || appletConfig.projectId || "",
+  storageBucket: getEnvVar('VITE_FIREBASE_STORAGE_BUCKET') || appletConfig.storageBucket || "",
+  messagingSenderId: getEnvVar('VITE_FIREBASE_MESSAGING_SENDER_ID') || appletConfig.messagingSenderId || "",
+  appId: getEnvVar('VITE_FIREBASE_APP_ID') || appletConfig.appId || "",
+  measurementId: getEnvVar('VITE_FIREBASE_MEASUREMENT_ID') || appletConfig.measurementId || "",
+  firestoreDatabaseId: getEnvVar('VITE_FIREBASE_DATABASE_ID') || appletConfig.firestoreDatabaseId || undefined,
 };
 
 // 2. Singleton Initialization Guards
