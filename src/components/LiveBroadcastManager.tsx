@@ -20,6 +20,7 @@ interface BroadcastConfig {
   showTitle?: string;
   showTime?: string;
   scheduleJson?: string;
+  tickerSpeed?: number;
   // Advertisement Squeeze-Back options
   adEnabled?: boolean;
   adSponsorName?: string;
@@ -46,6 +47,7 @@ export function LiveBroadcaster({ movies, showToast }: AdminLiveBroadcastViewPro
   const [activeMovieId, setActiveMovieId] = useState('');
   const [status, setStatus] = useState<'live' | 'repeat' | 'off'>('off');
   const [tickerUpdates, setTickerUpdates] = useState('');
+  const [tickerSpeed, setTickerSpeed] = useState(25);
   const [channelName, setChannelName] = useState('SKD ONE');
   const [showTitle, setShowTitle] = useState('MORNING SHOW');
   const [showTime, setShowTime] = useState('08:00 AM - 10:00 AM');
@@ -224,6 +226,7 @@ export function LiveBroadcaster({ movies, showToast }: AdminLiveBroadcastViewPro
       activeMovieId: movieID,
       status: 'live' as const,
       tickerUpdates: `🔴 NOW ON AIR: Admin is broadcasting "${localFile.name}" from device storage. Join the stream now!`,
+      tickerSpeed: Number(tickerSpeed) || 25,
       startedAt: new Date().toISOString(),
       channelName: channelName.trim() || 'SKD ONE',
       showTitle: `LIVE BROADCAST: ${cleanTitle}`,
@@ -335,6 +338,7 @@ export function LiveBroadcaster({ movies, showToast }: AdminLiveBroadcastViewPro
         setActiveMovieId(localData.activeMovieId || '');
         setStatus(localData.status || 'off');
         setTickerUpdates(localData.tickerUpdates || '');
+        setTickerSpeed(localData.tickerSpeed !== undefined ? localData.tickerSpeed : 25);
         if (localData.channelName) setChannelName(localData.channelName);
         if (localData.showTitle) setShowTitle(localData.showTitle);
         if (localData.showTime) setShowTime(localData.showTime);
@@ -368,6 +372,7 @@ export function LiveBroadcaster({ movies, showToast }: AdminLiveBroadcastViewPro
         setActiveMovieId(data.activeMovieId || '');
         setStatus(data.status || 'off');
         setTickerUpdates(data.tickerUpdates || '');
+        setTickerSpeed(data.tickerSpeed !== undefined ? data.tickerSpeed : 25);
         if (data.channelName) setChannelName(data.channelName);
         if (data.showTitle) setShowTitle(data.showTitle);
         if (data.showTime) setShowTime(data.showTime);
@@ -421,6 +426,7 @@ export function LiveBroadcaster({ movies, showToast }: AdminLiveBroadcastViewPro
       activeMovieId,
       status,
       tickerUpdates: tickerUpdates.trim(),
+      tickerSpeed: Number(tickerSpeed) || 25,
       startedAt: (status !== 'off' && currentBroadcast?.status !== 'off')
         ? (currentBroadcast?.startedAt || new Date().toISOString())
         : new Date().toISOString(),
@@ -934,15 +940,46 @@ export function LiveBroadcaster({ movies, showToast }: AdminLiveBroadcastViewPro
             )}
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-white uppercase tracking-wider font-mono">Scrolling Updates & Hashtag Ticker</label>
-            <p className="text-[10px] text-white/40 pb-1.5 font-sans">Customized horizontal updates that scroll at the bottom of the screen. Include trending hashtags!</p>
-            <textarea
-              value={tickerUpdates}
-              onChange={(e) => setTickerUpdates(e.target.value)}
-              placeholder="e.g. #DONALISA #TrendingNow #BlockbusterMovie playing. Welcome all viewers! Leave reviews and comments in real-time."
-              className="w-full h-20 bg-[#0c0c0c] border border-[#222] focus:border-red-600 focus:outline-none rounded-xl px-4 py-3 text-xs font-sans text-white resize-none"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-white uppercase tracking-wider font-mono">Scrolling Updates & Hashtag Ticker</label>
+              <p className="text-[10px] text-white/40 pb-1.5 font-sans">Customized horizontal updates that scroll at the bottom of the screen. Include trending hashtags!</p>
+              <textarea
+                value={tickerUpdates}
+                onChange={(e) => setTickerUpdates(e.target.value)}
+                placeholder="e.g. #DONALISA #TrendingNow #BlockbusterMovie playing. Welcome all viewers! Leave reviews and comments in real-time."
+                className="w-full h-20 bg-[#0c0c0c] border border-[#222] focus:border-red-600 focus:outline-none rounded-xl px-4 py-3 text-xs font-sans text-white resize-none"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-white uppercase tracking-wider font-mono">Ticker Scrolling Speed</label>
+              <p className="text-[10px] text-white/40 pb-1.5 font-sans">Adjust how fast or slow the horizontal updates scroll across the screen (smaller is faster, larger is slower).</p>
+              <div className="bg-[#0c0c0c] border border-[#222] rounded-xl p-3.5 space-y-2.5">
+                <div className="flex justify-between items-center text-xs font-mono">
+                  <span className="text-[#888]">Speed Level:</span>
+                  <span className="text-red-500 font-extrabold uppercase">
+                    {tickerSpeed <= 10 ? '🏎️ Super Fast' :
+                     tickerSpeed <= 20 ? '⚡ Fast' :
+                     tickerSpeed <= 35 ? '🏃 Medium' :
+                     tickerSpeed <= 60 ? '🐢 Slow' : '🐌 Super Slow'} ({tickerSpeed}s duration)
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="5"
+                  max="120"
+                  value={tickerSpeed}
+                  onChange={(e) => setTickerSpeed(Number(e.target.value))}
+                  className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-red-600"
+                />
+                <div className="flex justify-between text-[8px] md:text-[9px] text-gray-500 font-mono">
+                  <span>Fast (5s)</span>
+                  <span>Medium (35s)</span>
+                  <span>Slow (120s)</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="pt-2">
@@ -1131,6 +1168,7 @@ export function UserLiveTvView({ movies, user }: UserLiveTvViewProps) {
   const [now, setNow] = useState(Date.now());
   const [scheduleItems, setScheduleItems] = useState<{ title: string; time: string }[]>([]);
   const [isWatching, setIsWatching] = useState(false);
+  const [userAdActivated, setUserAdActivated] = useState(false);
 
   // Real-time listener for current broadcast settings
   useEffect(() => {
@@ -1196,15 +1234,6 @@ export function UserLiveTvView({ movies, user }: UserLiveTvViewProps) {
     return () => clearInterval(timer);
   }, [broadcast]);
 
-  if (loading) {
-    return (
-      <div className="py-24 text-center space-y-3">
-        <Loader2 className="w-10 h-10 text-red-600 animate-spin mx-auto" />
-        <p className="text-xs text-[#888] font-mono uppercase tracking-wider">Syncing with television broadcast feed...</p>
-      </div>
-    );
-  }
-
   const movie = broadcast && broadcast.status !== 'off' 
     ? (movies.find(m => m.id === broadcast.activeMovieId) || 
        (broadcast as any).broadcastMovie || 
@@ -1228,6 +1257,15 @@ export function UserLiveTvView({ movies, user }: UserLiveTvViewProps) {
       setIsWatching(false);
     }
   }, [isBroadcastActive]);
+
+  if (loading) {
+    return (
+      <div className="py-24 text-center space-y-3">
+        <Loader2 className="w-10 h-10 text-red-600 animate-spin mx-auto" />
+        <p className="text-xs text-[#888] font-mono uppercase tracking-wider">Syncing with television broadcast feed...</p>
+      </div>
+    );
+  }
 
   // Calculate live offset
   let liveStartTimeOffset = 0;
@@ -1262,7 +1300,7 @@ export function UserLiveTvView({ movies, user }: UserLiveTvViewProps) {
     }
   }
 
-  const isAdOverlayVisible = !!(broadcast?.adEnabled || isScheduledAdActive);
+  const isAdOverlayVisible = userAdActivated;
 
   return (
     <div className="space-y-6 text-left animate-fadeIn">
@@ -1333,58 +1371,72 @@ export function UserLiveTvView({ movies, user }: UserLiveTvViewProps) {
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
-            {/* Header row */}
-            <div className="flex items-center justify-between animate-fadeIn">
-              <div className="flex items-center gap-2">
-                <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-mono font-black text-white ${
+          <div className="space-y-6 text-left animate-fadeIn">
+            {/* Top Navigation / Action Bar */}
+            <div className="flex items-center justify-between bg-zinc-900/45 backdrop-blur-sm border border-zinc-800/60 p-3.5 rounded-2xl animate-fadeIn">
+              <div className="flex items-center gap-3">
+                <span className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-[10px] md:text-xs font-mono font-black text-white uppercase tracking-wider ${
                   broadcast.status === 'live' 
-                    ? 'bg-red-600 animate-pulse' 
-                    : 'bg-purple-600'
+                    ? 'bg-red-600 animate-pulse shadow-lg shadow-red-600/20' 
+                    : 'bg-[#5522e6] shadow-lg shadow-indigo-600/20'
                 }`}>
                   <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
                   {broadcast.status === 'live' ? 'LIVE ON AIR' : 'RERUN BROADCAST'}
                 </span>
-
-                <button 
-                  onClick={() => setIsWatching(false)}
-                  className="text-[10px] font-mono font-bold text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 px-2.5 py-1 rounded-lg border border-white/5 transition-all uppercase cursor-pointer flex items-center gap-1"
-                >
-                  ◀ Close TV
-                </button>
+                <span className="text-zinc-500 font-mono text-xs hidden sm:inline">|</span>
+                <span className="text-zinc-300 font-sans font-bold text-xs uppercase tracking-wide hidden sm:inline">
+                  Tuning in: <span className="text-red-500">{broadcast.channelName || 'DONALISA TV'}</span>
+                </span>
               </div>
+
+              <button 
+                onClick={() => setIsWatching(false)}
+                className="text-xs font-mono font-black text-white hover:text-red-400 bg-red-600/10 hover:bg-red-600/20 border border-red-500/20 px-4 py-2 rounded-xl transition-all uppercase cursor-pointer flex items-center gap-1.5 shadow-sm"
+              >
+                ◀ Close Television Screen
+              </button>
             </div>
 
-          {/* Interactive Player with TV HUD Overlays */}
-          <div id="donalisa-premium-video-player-container" className="bg-[#000] border border-[#222] rounded-3xl overflow-hidden shadow-2xl relative group aspect-video w-full">
-            <style>{`
-              @keyframes sponsorMarquee {
-                0% { transform: translateX(0%); }
-                100% { transform: translateX(-50%); }
-              }
-              .animate-sponsorMarquee {
-                display: inline-block;
-                animation: sponsorMarquee 25s linear infinite;
-              }
-            `}</style>
+            {/* Split TV Hub Grid Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+              
+              {/* Left Video Stream Area (9 Columns) */}
+              <div className="lg:col-span-9 flex flex-col justify-between space-y-4">
+                
+                {/* Interactive Player Frame with TV HUD Overlays */}
+                <div id="donalisa-premium-video-player-container" className="bg-[#000] border border-zinc-800 rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative group aspect-video w-full">
+                  <style>{`
+                    @keyframes sponsorMarquee {
+                      0% { transform: translateX(0%); }
+                      100% { transform: translateX(-50%); }
+                    }
+                    .animate-sponsorMarquee {
+                      display: inline-block;
+                      animation: sponsorMarquee 25s linear infinite;
+                    }
+                    @keyframes marquee {
+                      0% { transform: translateX(0%); }
+                      100% { transform: translateX(-33.33%); }
+                    }
+                  `}</style>
 
-            {/* TV Broadcaster HUD style Overlay & Video Player combined in absolute transition container */}
-            <motion.div 
-              layout
-              initial={false}
-              animate={{
-                borderRadius: isAdOverlayVisible ? "16px" : "0px",
-                borderWidth: isAdOverlayVisible ? "2px" : "0px",
-                borderColor: isAdOverlayVisible ? "rgba(0, 229, 255, 0.4)" : "rgba(0, 0, 0, 0)",
-                boxShadow: isAdOverlayVisible ? "0 0 20px rgba(0, 229, 255, 0.3)" : "none",
-              }}
-              transition={{
-                type: "spring",
-                stiffness: 110,
-                damping: 18,
-                mass: 1.1
-              }}
-              className={`relative bg-black overflow-hidden ${
+                  {/* TV Broadcaster HUD style Overlay & Video Player combined in absolute transition container */}
+                  <motion.div 
+                    layout
+                    initial={false}
+                    animate={{
+                      borderRadius: isAdOverlayVisible ? "16px" : "0px",
+                      borderWidth: isAdOverlayVisible ? "2px" : "0px",
+                      borderColor: isAdOverlayVisible ? "rgba(0, 229, 255, 0.4)" : "rgba(0, 0, 0, 0)",
+                      boxShadow: isAdOverlayVisible ? "0 0 20px rgba(0, 229, 255, 0.3)" : "none",
+                    }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 110,
+                      damping: 18,
+                      mass: 1.1
+                    }}
+                    className={`relative bg-black overflow-hidden ${
                 isAdOverlayVisible 
                   ? 'absolute top-3 left-3 w-[72%] h-[72%] z-20' 
                   : 'w-full h-full'
@@ -1399,7 +1451,7 @@ export function UserLiveTvView({ movies, user }: UserLiveTvViewProps) {
               />
 
               {/* HUD HUD Overlay layer (Responsive to Squeeze size) */}
-              <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-3 md:p-5 z-10 select-none">
+              <div className={`absolute inset-0 pointer-events-none flex flex-col justify-between p-3 md:p-5 z-10 select-none ${!isAdOverlayVisible ? 'pb-9 md:pb-12' : ''}`}>
                 {/* TOP ROW: BRANDING & LIVE STATUS */}
                 <div className="flex justify-between items-start">
                   {/* Top-Left: Channel Name & Show Details */}
@@ -1461,6 +1513,22 @@ export function UserLiveTvView({ movies, user }: UserLiveTvViewProps) {
 
                   {/* Picture in Picture & Fullscreen Controls on the right */}
                   <div className="flex items-center gap-1.5 pointer-events-auto">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setUserAdActivated(prev => !prev);
+                      }}
+                      className={`px-2 py-1 rounded-lg md:rounded-xl flex items-center gap-1.5 text-[8px] md:text-[10px] font-mono font-bold tracking-wider uppercase transition-all shadow-xl cursor-pointer border ${
+                        userAdActivated 
+                          ? 'bg-yellow-500 hover:bg-yellow-600 border-yellow-600 text-black font-extrabold' 
+                          : 'bg-black/85 hover:bg-white/15 border-white/15 text-yellow-400 hover:text-yellow-300'
+                      }`}
+                      title={userAdActivated ? "Hide Sponsor Deals" : "Show Sponsor Special Deals"}
+                    >
+                      <Sparkles className={`w-3 h-3 ${userAdActivated ? 'text-black' : 'text-yellow-400 animate-pulse'}`} />
+                      <span>{userAdActivated ? "Hide Offers" : "🎁 Sponsor Deals"}</span>
+                    </button>
+
                     <button 
                       onClick={async (e) => {
                         e.stopPropagation();
@@ -1552,20 +1620,31 @@ export function UserLiveTvView({ movies, user }: UserLiveTvViewProps) {
                     className="absolute top-3 right-3 bottom-3 w-[24%] bg-gradient-to-b from-[#101012] via-[#08080a] to-[#020204] border border-white/5 rounded-2xl p-2.5 md:p-3.5 flex flex-col justify-between text-left overflow-hidden z-10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]"
                   >
                   <div className="space-y-2 flex-1 flex flex-col min-h-0">
-                    <div className="flex flex-wrap gap-1.5 items-center">
-                      {/* Sparkles Brand Header */}
-                      <div className="flex items-center gap-1 bg-yellow-400/10 border border-yellow-500/20 px-2 py-1 rounded-lg text-[7px] md:text-[9px] font-mono font-black text-yellow-500 uppercase tracking-widest leading-none shrink-0 w-max">
-                        <Sparkles className="w-2.5 h-2.5 text-yellow-500 animate-pulse shrink-0" />
-                        <span>OFFICIAL SPONSOR</span>
+                    <div className="flex justify-between items-start gap-1.5 w-full">
+                      <div className="flex flex-wrap gap-1.5 items-center">
+                        {/* Sparkles Brand Header */}
+                        <div className="flex items-center gap-1 bg-yellow-400/10 border border-yellow-500/20 px-2 py-1 rounded-lg text-[7px] md:text-[9px] font-mono font-black text-yellow-500 uppercase tracking-widest leading-none shrink-0 w-max">
+                          <Sparkles className="w-2.5 h-2.5 text-yellow-500 animate-pulse shrink-0" />
+                          <span>OFFICIAL SPONSOR</span>
+                        </div>
+
+                        {/* Scheduled ad remaining countdown timer */}
+                        {isScheduledAdActive && (
+                          <div className="flex items-center gap-1 bg-red-500/10 border border-red-500/35 px-1.5 py-1 rounded-lg text-[6px] md:text-[8px] font-mono font-black text-red-500 uppercase tracking-wider shrink-0 w-max">
+                            <Clock className="w-2 h-2 text-red-500 animate-spin" />
+                            <span>Break: {remainingTimeForScheduledAd}s</span>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Scheduled ad remaining countdown timer */}
-                      {isScheduledAdActive && (
-                        <div className="flex items-center gap-1 bg-red-500/10 border border-red-500/35 px-1.5 py-1 rounded-lg text-[6px] md:text-[8px] font-mono font-black text-red-500 uppercase tracking-wider shrink-0 w-max">
-                          <Clock className="w-2 h-2 text-red-500 animate-spin" />
-                          <span>Break: {remainingTimeForScheduledAd}s</span>
-                        </div>
-                      )}
+                      {/* Close button for User to easily close the Sponsor Ads */}
+                      <button
+                        onClick={() => setUserAdActivated(false)}
+                        className="p-1 hover:bg-red-600/35 border border-white/5 hover:border-red-500/30 text-white/40 hover:text-red-400 rounded-lg transition-all pointer-events-auto cursor-pointer"
+                        title="Close Sponsor Deals"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
                     </div>
 
                     {/* Sponsor banner thumbnail */}
@@ -1653,103 +1732,178 @@ export function UserLiveTvView({ movies, user }: UserLiveTvViewProps) {
                 </>
               )}
             </AnimatePresence>
-          </div>
 
-          {/* Elegant Horizontal Scrolling Hashtag/Updates Ticker (CNN / BBC style) with Live Clock */}
-          <div id="live-tv-broadcast-clock-container" className="space-y-1.5">
-            {/* Real-time Clock bar above the ticker */}
-            <div className="flex justify-between items-end px-1 animate-fadeIn">
-              <div id="live-tv-clock-badge" className="flex items-center gap-2 bg-[#1a1a1a] border border-white/5 shadow-2xl rounded-t-xl px-4 py-1.5 text-[10px] font-mono font-bold tracking-wider text-rose-500">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500"></span>
-                </span>
-                <span id="live-tv-clock-date" className="text-[#888]">
-                  {new Date(now).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase()}
-                </span>
-                <span className="text-white/20">|</span>
-                <span id="live-tv-clock-time" className="text-white text-[11px] font-black tracking-widest tabular-nums font-mono animate-pulse">
-                  {new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).toUpperCase()}
-                </span>
-                <span className="text-white/20">|</span>
-                <span id="live-tv-clock-label" className="text-rose-400 font-extrabold uppercase text-[8px] tracking-widest">
-                  LIVE TELEVISION CLOCK
-                </span>
-              </div>
-              <div id="live-tv-clock-sync-info" className="text-[8px] font-mono text-white/30 uppercase tracking-widest pb-1 hidden sm:block">
-                SYS_SYNC_ACTIVE: {(liveStartTimeOffset / 60).toFixed(0)}m ELAPSED
-              </div>
-            </div>
-
-            {/* Scrolling Ticker (CNN style) */}
-            <div id="live-tv-ticker-container" className="bg-[#E50914] text-white overflow-hidden relative rounded-2xl rounded-tl-none flex items-center shadow-lg border border-red-500/10">
-              <div id="live-tv-ticker-label" className="bg-[#a0060e] px-4 py-2 text-[10px] font-mono font-black uppercase tracking-wider shrink-0 z-10 border-r border-red-700/50 flex items-center gap-1.5 shadow-md">
-                <Tv className="w-3.5 h-3.5 animate-pulse" />
-                <span>UPDATES</span>
-              </div>
-              <div className="w-full overflow-hidden whitespace-nowrap flex items-center relative py-2">
-                <div id="live-tv-ticker-track" className="animate-marquee whitespace-nowrap flex gap-12 text-xs font-mono font-bold tracking-wider uppercase">
-                  {(() => {
-                    const text = (broadcast.tickerUpdates && broadcast.tickerUpdates.trim()) 
-                      ? broadcast.tickerUpdates 
-                      : `WELCOME TO THE ${broadcast.channelName || 'SKD ONE'} STREAMING NETWORK • MULTI-CLIENT CLOUD TELECAST IN PROGRESS • STAY TUNED FOR UPCOMING BLOCKBUSTERS & RE-RUN SHOWS`;
-                    return (
-                      <>
-                        <span>{text}</span>
-                        <span>•</span>
-                        <span>{text}</span>
-                        <span>•</span>
-                        <span>{text}</span>
-                        <span>•</span>
-                        <span>{text}</span>
-                      </>
-                    );
-                  })()}
+            {/* Scrolling Ticker (CNN style) inside the screen preview */}
+            {!isAdOverlayVisible && (
+              <div 
+                id="live-tv-ticker-container" 
+                className="absolute bottom-0 left-0 right-0 bg-[#E50914]/95 backdrop-blur-sm text-white overflow-hidden flex items-center shadow-lg border-t border-white/10 z-30 h-7 md:h-9"
+              >
+                <div id="live-tv-ticker-label" className="bg-[#a0060e] h-full px-3 text-[8px] md:text-[10px] font-mono font-black uppercase tracking-wider shrink-0 z-10 border-r border-red-700/50 flex items-center gap-1.5 shadow-md">
+                  <Tv className="w-3 h-3 md:w-3.5 md:h-3.5 animate-pulse" />
+                  <span>UPDATES</span>
+                </div>
+                <div className="w-full overflow-hidden whitespace-nowrap flex items-center relative h-full">
+                  <div 
+                    id="live-tv-ticker-track" 
+                    className="whitespace-nowrap flex gap-12 text-[10px] md:text-xs font-mono font-bold tracking-wider uppercase items-center"
+                    style={{
+                      animation: `marquee ${broadcast.tickerSpeed || 25}s linear infinite`
+                    }}
+                  >
+                    {(() => {
+                      const text = (broadcast.tickerUpdates && broadcast.tickerUpdates.trim()) 
+                        ? broadcast.tickerUpdates 
+                        : `WELCOME TO THE ${broadcast.channelName || 'SKD ONE'} STREAMING NETWORK • MULTI-CLIENT CLOUD TELECAST IN PROGRESS • STAY TUNED FOR UPCOMING BLOCKBUSTERS & RE-RUN SHOWS`;
+                      return (
+                        <>
+                          <span>{text}</span>
+                          <span>•</span>
+                          <span>{text}</span>
+                          <span>•</span>
+                          <span>{text}</span>
+                          <span>•</span>
+                          <span>{text}</span>
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
-
-          {/* Movie Details card below the stream */}
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-[#111] border border-[#222] rounded-2xl p-6 flex flex-col md:flex-row items-start justify-between gap-6"
-          >
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2.5">
-                <h3 className="text-lg font-extrabold text-white">{movie.title}</h3>
-                <span className="bg-[#1f1f1f] border border-[#333] px-2 py-0.5 rounded text-xs font-mono font-semibold uppercase tracking-wider text-[#00E5FF]">{movie.rating}</span>
-                {movie.categories?.map((cat) => (
-                  <span key={cat} className="text-xs text-[#E50914] bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20 font-semibold">{cat}</span>
-                ))}
-              </div>
-              <p className="text-xs text-[#aaa] leading-relaxed max-w-4xl">{movie.description}</p>
-            </div>
-            
-            <div className="bg-[#0c0c0c] border border-[#222] p-4 rounded-xl space-y-2 shrink-0 w-full md:w-64 text-xs font-mono">
-              <div className="text-white/40 uppercase font-bold border-b border-[#222] pb-1.5">Broadcast Info</div>
-              <div className="flex justify-between">
-                <span className="text-[#888]">Type</span>
-                <span className="text-red-500 font-bold">{movie.type === 'song' ? '🎵 Audio Track' : '🎬 Movie'}</span>
-              </div>
-              {movie.artist && (
-                <div className="flex justify-between">
-                  <span className="text-[#888]">Artist</span>
-                  <span className="text-white font-bold">{movie.artist}</span>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <span className="text-[#888]">Status</span>
-                <span className="text-white capitalize">{broadcast.status}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#888]">Synced Offset</span>
-                <span>{Math.floor(liveStartTimeOffset / 60)}m {liveStartTimeOffset % 60}s</span>
-              </div>
-            </div>
-          </motion.div>
         </div>
+
+        {/* Right Television Hub Panel (3 Columns) */}
+              <div className="lg:col-span-3 flex flex-col justify-between space-y-4 h-full">
+                
+                {/* Channel & Live Clock Widget */}
+                <div className="bg-zinc-950/80 border border-zinc-800/80 p-4 rounded-2xl space-y-3 shadow-xl backdrop-blur-sm">
+                  <div className="flex justify-between items-center border-b border-zinc-800/60 pb-2">
+                    <span className="text-xs font-mono font-black text-rose-500 uppercase tracking-widest flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+                      Studio Hub
+                    </span>
+                    <span className="text-[10px] font-mono text-zinc-500">DSTV 287 | GOTV 93</span>
+                  </div>
+                  <div className="text-left space-y-1">
+                    <h3 className="text-lg font-black text-white tracking-wide uppercase">
+                      {broadcast.channelName || 'DONALISA TV'}
+                    </h3>
+                    <p className="text-[11px] font-mono text-cyan-400 font-bold leading-none uppercase">
+                      {broadcast.showTitle || 'MAIN TELECAST'}
+                    </p>
+                    <span className="text-[10px] text-zinc-500 font-mono tracking-tight block">
+                      Airing: {broadcast.showTime || '24/7 NON-STOP'}
+                    </span>
+                  </div>
+                  
+                  {/* Neon UTC clock indicator */}
+                  <div className="bg-black/60 border border-zinc-800 p-2.5 rounded-xl flex items-center justify-between text-xs font-mono shadow-inner">
+                    <span className="text-zinc-500 uppercase font-black text-[9px]">LIVE TIME</span>
+                    <span className="text-cyan-400 font-black tracking-widest text-sm tabular-nums">
+                      {(() => {
+                        const d = new Date(now);
+                        const hrs = String(d.getHours()).padStart(2, '0');
+                        const mins = String(d.getMinutes()).padStart(2, '0');
+                        const secs = String(d.getSeconds()).padStart(2, '0');
+                        return `${hrs}:${mins}:${secs}`;
+                      })()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Telecast Schedule Timeline */}
+                <div className="bg-zinc-950/80 border border-zinc-800/80 p-4 rounded-2xl flex-1 flex flex-col min-h-[220px] shadow-xl backdrop-blur-sm">
+                  <div className="text-xs font-mono font-black text-white uppercase tracking-widest border-b border-zinc-800/60 pb-2 flex items-center justify-between">
+                    <span>UP NEXT ON AIR</span>
+                    <Clock className="w-3.5 h-3.5 text-zinc-500" />
+                  </div>
+                  <div className="flex-1 overflow-y-auto space-y-2.5 pt-3 no-scrollbar max-h-[280px]">
+                    {scheduleItems && scheduleItems.length > 0 ? (
+                      scheduleItems.map((item, idx) => (
+                        <div key={idx} className="flex gap-2 text-left bg-zinc-900/40 p-2 rounded-xl border border-zinc-800/40 transition-colors hover:bg-zinc-900/70">
+                          <span className="w-6 h-6 bg-red-600/10 border border-red-500/20 text-red-500 text-[10px] font-mono font-black flex items-center justify-center rounded-lg">
+                            0{idx + 1}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-white uppercase tracking-wide truncate leading-tight">
+                              {item.title}
+                            </p>
+                            <p className="text-[9px] font-mono text-zinc-400 font-semibold leading-none mt-1 flex items-center gap-1">
+                              <span className="w-1 h-1 rounded-full bg-cyan-400" />
+                              {item.time}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full text-center p-4">
+                        <Tv className="w-8 h-8 text-zinc-700 animate-pulse mb-1.5" />
+                        <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider font-bold">No Scheduled Shows</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Hotlines & Social Handles */}
+                <div className="bg-zinc-950/80 border border-zinc-800/80 p-3.5 rounded-2xl space-y-2.5 shadow-xl backdrop-blur-sm text-xs font-mono text-zinc-400">
+                  <span className="text-[10px] font-black text-white uppercase tracking-widest block border-b border-zinc-800/60 pb-1.5">Viewer Interaction</span>
+                  <div className="grid grid-cols-2 gap-2 text-[9px] font-bold uppercase">
+                    <div className="bg-zinc-900/60 p-1.5 rounded-lg border border-zinc-800/40 text-center leading-tight">
+                      <span className="text-[8px] text-zinc-500 block">CALL STUDIO</span>
+                      <span className="text-white font-extrabold">+256 701 555001</span>
+                    </div>
+                    <div className="bg-zinc-900/60 p-1.5 rounded-lg border border-zinc-800/40 text-center leading-tight">
+                      <span className="text-[8px] text-zinc-500 block">WHATSAPP</span>
+                      <span className="text-[#25D366] font-extrabold">+256 703 111222</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div> {/* Close Split TV Hub Grid Layout */}
+
+            {/* Movie Details card below the stream */}
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-zinc-950/80 border border-zinc-800 rounded-3xl p-6 flex flex-col md:flex-row items-start justify-between gap-6 shadow-xl"
+            >
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <h3 className="text-lg font-extrabold text-white">{movie.title}</h3>
+                  <span className="bg-[#1f1f1f] border border-[#333] px-2 py-0.5 rounded text-xs font-mono font-semibold uppercase tracking-wider text-[#00E5FF]">{movie.rating}</span>
+                  {movie.categories?.map((cat) => (
+                    <span key={cat} className="text-xs text-[#E50914] bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20 font-semibold">{cat}</span>
+                  ))}
+                </div>
+                <p className="text-xs text-[#aaa] leading-relaxed max-w-4xl">{movie.description}</p>
+              </div>
+              
+              <div className="bg-[#0c0c0c] border border-[#222] p-4 rounded-xl space-y-2 shrink-0 w-full md:w-64 text-xs font-mono">
+                <div className="text-white/40 uppercase font-bold border-b border-[#222] pb-1.5">Broadcast Info</div>
+                <div className="flex justify-between">
+                  <span className="text-[#888]">Type</span>
+                  <span className="text-red-500 font-bold">{movie.type === 'song' ? '🎵 Audio Track' : '🎬 Movie'}</span>
+                </div>
+                {movie.artist && (
+                  <div className="flex justify-between">
+                    <span className="text-[#888]">Artist</span>
+                    <span className="text-white font-bold">{movie.artist}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-[#888]">Status</span>
+                  <span className="text-white capitalize">{broadcast.status}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#888]">Synced Offset</span>
+                  <span>{Math.floor(liveStartTimeOffset / 60)}m {liveStartTimeOffset % 60}s</span>
+                </div>
+              </div>
+            </motion.div>
+          </div>
         )
       ) : (
         /* Cinematic TV Offline screen with CSS color bars */
