@@ -456,6 +456,46 @@ export function LiveBroadcaster({ movies, showToast }: AdminLiveBroadcastViewPro
     }
   };
 
+  const handleEndBroadcast = async () => {
+    setSaving(true);
+    const configData = {
+      activeMovieId: '',
+      status: 'off' as const,
+      tickerUpdates: '🔴 Live broadcast has been ended by the administrator. Broadcast is currently offline.',
+      startedAt: new Date().toISOString(),
+      channelName: channelName.trim(),
+      showTitle: 'OFFLINE',
+      showTime: 'OFF AIR',
+      scheduleJson: JSON.stringify(scheduleItems),
+      adEnabled: false,
+      adSponsorName: adSponsorName.trim(),
+      adSponsorPhone: adSponsorPhone.trim(),
+      adSponsorLink: adSponsorLink.trim(),
+      adHeadline: adHeadline.trim(),
+      adTickerMessage: adTickerMessage.trim(),
+      adBannerImageUrl: adBannerImageUrl.trim(),
+      adVideoUrl: adVideoUrl.trim(),
+      adScheduleTimestamps: adScheduleTimestamps.trim(),
+      adScheduleDuration: Number(adScheduleDuration) || 15,
+      broadcastMovie: null,
+    };
+
+    localStorage.setItem('donalisa_broadcast_config', JSON.stringify(configData));
+    setCurrentBroadcast(configData as any);
+    setStatus('off');
+    setActiveMovieId('');
+
+    try {
+      await setDoc(doc(db, 'broadcast', 'current'), configData);
+      showToast('Live TV broadcast stopped & ended successfully! 📴', 'info');
+    } catch (err) {
+      console.warn('Could not end broadcast in cloud (local ended):', err);
+      showToast('Broadcast stopped locally. Cloud sync failed.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const selectedMovieObj = movies.find(m => m.id === activeMovieId) || 
     (currentBroadcast as any)?.broadcastMovie || 
     (() => {
@@ -1050,6 +1090,18 @@ export function LiveBroadcaster({ movies, showToast }: AdminLiveBroadcastViewPro
                     <span className="text-red-400 truncate max-w-[150px]">{currentBroadcast.tickerUpdates || 'None'}</span>
                   </div>
                 </div>
+
+                <div className="pt-4 border-t border-[#222]">
+                  <button
+                    type="button"
+                    onClick={handleEndBroadcast}
+                    disabled={saving}
+                    className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-[11px] uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-600/10 cursor-pointer disabled:opacity-50"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Stop & End Live TV Broadcast 🛑</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="py-12 text-center space-y-2">
@@ -1078,6 +1130,7 @@ export function UserLiveTvView({ movies, user }: UserLiveTvViewProps) {
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(Date.now());
   const [scheduleItems, setScheduleItems] = useState<{ title: string; time: string }[]>([]);
+  const [isWatching, setIsWatching] = useState(false);
 
   // Real-time listener for current broadcast settings
   useEffect(() => {
@@ -1169,6 +1222,13 @@ export function UserLiveTvView({ movies, user }: UserLiveTvViewProps) {
 
   const isBroadcastActive = broadcast && broadcast.status !== 'off' && movie;
 
+  // Reset watching state when broadcast is ended/offline
+  useEffect(() => {
+    if (!isBroadcastActive) {
+      setIsWatching(false);
+    }
+  }, [isBroadcastActive]);
+
   // Calculate live offset
   let liveStartTimeOffset = 0;
   if (isBroadcastActive && broadcast) {
@@ -1207,20 +1267,93 @@ export function UserLiveTvView({ movies, user }: UserLiveTvViewProps) {
   return (
     <div className="space-y-6 text-left animate-fadeIn">
       {isBroadcastActive && movie && broadcast ? (
-        <div className="space-y-4">
-          {/* Header row */}
-          <div className="flex items-center justify-between animate-fadeIn">
-            <div className="flex items-center gap-2">
-              <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-mono font-black text-white ${
-                broadcast.status === 'live' 
-                  ? 'bg-red-600 animate-pulse' 
-                  : 'bg-purple-600'
-              }`}>
+        !isWatching ? (
+          <div 
+            className="relative rounded-3xl overflow-hidden aspect-video w-full border border-[#222] shadow-2xl flex flex-col justify-between p-6 md:p-10 bg-cover bg-center animate-fadeIn select-none"
+            style={{ 
+              backgroundImage: `linear-gradient(to top, rgba(5,5,5,0.98) 20%, rgba(5,5,5,0.85) 60%, rgba(5,5,5,0.7) 100%), url(${movie.backdropUrl || movie.posterUrl || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=1200&q=80'})` 
+            }}
+          >
+            {/* Top Row: Channel Badge */}
+            <div className="flex justify-between items-start">
+              <span className="flex items-center gap-2 bg-[#E50914] text-white text-[10px] md:text-xs font-black font-mono tracking-widest px-3.5 py-1.5 rounded-full uppercase shadow-lg shadow-red-600/30">
                 <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
-                {broadcast.status === 'live' ? 'LIVE ON AIR' : 'RERUN BROADCAST'}
+                <span>{broadcast.status === 'live' ? 'LIVE ON AIR' : 'RERUN BROADCAST'}</span>
               </span>
+
+              <div className="flex items-center gap-2 bg-black/60 border border-white/10 backdrop-blur-md px-3 md:px-4 py-1.5 md:py-2.5 rounded-2xl">
+                <span className="font-mono italic font-black uppercase text-xs text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-rose-300">
+                  {broadcast.channelName || 'SKD ONE'}
+                </span>
+              </div>
+            </div>
+
+            {/* Central Info Column */}
+            <div className="max-w-2xl space-y-4 text-left">
+              <div className="space-y-2">
+                <p className="text-[#00E5FF] font-mono text-[10px] md:text-xs font-black tracking-widest uppercase flex items-center gap-2">
+                  <Tv className="w-4 h-4 text-[#00E5FF] animate-pulse" />
+                  <span>NOW STREAMING LIVE</span>
+                </p>
+                <h1 className="text-2xl md:text-5xl font-black text-white tracking-tight leading-none uppercase drop-shadow">
+                  {broadcast.showTitle || movie.title}
+                </h1>
+                <p className="text-xs md:text-sm text-gray-300 leading-relaxed font-sans line-clamp-2 max-w-xl">
+                  {movie.description}
+                </p>
+              </div>
+
+              {/* Action area: CLICK TO WATCH */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 pt-2">
+                <button
+                  onClick={() => setIsWatching(true)}
+                  className="px-8 py-4 bg-[#E50914] hover:bg-[#ff0c18] text-white rounded-2xl font-black text-sm uppercase tracking-wider transition-all flex items-center justify-center gap-3 shadow-2xl shadow-red-600/20 hover:scale-[1.02] active:scale-95 cursor-pointer"
+                >
+                  <Play className="w-5 h-5 fill-white animate-pulse" />
+                  <span>WATCH TV NOW</span>
+                </button>
+                
+                <div className="text-xs font-mono text-gray-400 border border-white/5 bg-white/5 backdrop-blur-md px-4 py-3 rounded-2xl">
+                  <span className="text-[#888]">SHOWTIME: </span>
+                  <span className="text-white font-extrabold">{broadcast.showTime || 'ONGOING'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Row: Info */}
+            <div className="border-t border-white/5 pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono text-gray-400">
+              <div className="flex items-center gap-2">
+                <span className="bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded text-[10px] text-[#00E5FF] font-bold uppercase">{movie.rating}</span>
+                <span>•</span>
+                <span>{movie.categories?.join(', ')}</span>
+              </div>
+              <p className="text-[10px] text-[#00E5FF] font-bold uppercase tracking-wider animate-pulse">
+                ★ Click Watch TV to tune in to the live stream
+              </p>
             </div>
           </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Header row */}
+            <div className="flex items-center justify-between animate-fadeIn">
+              <div className="flex items-center gap-2">
+                <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-mono font-black text-white ${
+                  broadcast.status === 'live' 
+                    ? 'bg-red-600 animate-pulse' 
+                    : 'bg-purple-600'
+                }`}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+                  {broadcast.status === 'live' ? 'LIVE ON AIR' : 'RERUN BROADCAST'}
+                </span>
+
+                <button 
+                  onClick={() => setIsWatching(false)}
+                  className="text-[10px] font-mono font-bold text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 px-2.5 py-1 rounded-lg border border-white/5 transition-all uppercase cursor-pointer flex items-center gap-1"
+                >
+                  ◀ Close TV
+                </button>
+              </div>
+            </div>
 
           {/* Interactive Player with TV HUD Overlays */}
           <div id="donalisa-premium-video-player-container" className="bg-[#000] border border-[#222] rounded-3xl overflow-hidden shadow-2xl relative group aspect-video w-full">
@@ -1259,7 +1392,7 @@ export function UserLiveTvView({ movies, user }: UserLiveTvViewProps) {
             >
               <VideoPlayer 
                 movie={movie}
-                onClose={() => {}}
+                onClose={() => setIsWatching(false)}
                 isLiveStream={true}
                 liveStartTimeOffset={liveStartTimeOffset}
                 forceMuted={isAdOverlayVisible}
@@ -1617,6 +1750,7 @@ export function UserLiveTvView({ movies, user }: UserLiveTvViewProps) {
             </div>
           </motion.div>
         </div>
+        )
       ) : (
         /* Cinematic TV Offline screen with CSS color bars */
         <div className="bg-[#111] border border-[#222] rounded-3xl overflow-hidden p-8 md:p-16 text-center max-w-4xl mx-auto space-y-8 shadow-2xl relative">

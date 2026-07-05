@@ -111,6 +111,10 @@ export default function VideoPlayer({
   const feedbackTimer = useRef<NodeJS.Timeout | null>(null);
 
   const handleVideoDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isLiveStream) {
+      togglePlay();
+      return;
+    }
     const bounds = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - bounds.left;
     const width = bounds.width;
@@ -280,7 +284,7 @@ export default function VideoPlayer({
     if (isPlaying) {
       if (isLiveStream && movie.duration > 0) {
         const currentOffset = liveOffsetRef.current % movie.duration;
-        if (Math.abs(video.currentTime - currentOffset) > 3) {
+        if (Math.abs(video.currentTime - currentOffset) > 1) {
           video.currentTime = currentOffset;
         }
       }
@@ -328,11 +332,11 @@ export default function VideoPlayer({
           break;
         case 'j':
         case 'arrowleft':
-          seekDelta(-10);
+          if (!isLiveStream) seekDelta(-10);
           break;
         case 'l':
         case 'arrowright':
-          seekDelta(10);
+          if (!isLiveStream) seekDelta(10);
           break;
         case 'arrowup':
           setVolume(Math.min(1, volume + 0.1));
@@ -342,7 +346,7 @@ export default function VideoPlayer({
           break;
         default:
           // 0-9 numerical keys to seek to percentage
-          if (e.key >= '0' && e.key <= '9') {
+          if (e.key >= '0' && e.key <= '9' && !isLiveStream) {
             const pct = parseInt(e.key) / 10;
             if (videoRef.current) {
               const target = videoRef.current.duration * pct;
@@ -397,6 +401,15 @@ export default function VideoPlayer({
     if (!video) return;
 
     setCurrentTime(video.currentTime);
+
+    // Dynamic television style live stream drift synchronization
+    if (isLiveStream && isPlaying && movie.duration > 0) {
+      const currentOffset = liveOffsetRef.current % movie.duration;
+      // If playback drifts from live broadcast by more than 2 seconds, resync immediately
+      if (Math.abs(video.currentTime - currentOffset) > 2) {
+        video.currentTime = currentOffset;
+      }
+    }
     
     // Save watch history periodically to localStorage (only if not a live stream)
     if (!isLiveStream) {
@@ -773,38 +786,40 @@ export default function VideoPlayer({
               className="space-y-3 pointer-events-auto"
             >
               {/* TIMELINE SLIDER WITH HOVER TIMESTAMP */}
-              <div 
-                className="relative group/scrub"
-                onMouseMove={handleTimelineHover}
-                onMouseLeave={() => setScrubHoverTime(null)}
-              >
-                {/* Hover Preview Box */}
-                {scrubHoverTime !== null && (
-                  <div 
-                    className="absolute -top-10 bg-black/90 border border-[#222] text-white px-2 py-1 rounded text-[10px] font-mono pointer-events-none -translate-x-1/2 z-50 backdrop-blur-md flex flex-col items-center gap-0.5"
-                    style={{ left: `${scrubHoverX}px` }}
-                  >
-                    <span className="text-white font-bold">{formatTime(scrubHoverTime)}</span>
-                    <span className="text-[8px] text-[#888]">
-                      ({Math.round((scrubHoverTime / (videoRef.current?.duration || 1)) * 100)}%)
-                    </span>
-                  </div>
-                )}
+              {!isLiveStream && (
+                <div 
+                  className="relative group/scrub"
+                  onMouseMove={handleTimelineHover}
+                  onMouseLeave={() => setScrubHoverTime(null)}
+                >
+                  {/* Hover Preview Box */}
+                  {scrubHoverTime !== null && (
+                    <div 
+                      className="absolute -top-10 bg-black/90 border border-[#222] text-white px-2 py-1 rounded text-[10px] font-mono pointer-events-none -translate-x-1/2 z-50 backdrop-blur-md flex flex-col items-center gap-0.5"
+                      style={{ left: `${scrubHoverX}px` }}
+                    >
+                      <span className="text-white font-bold">{formatTime(scrubHoverTime)}</span>
+                      <span className="text-[8px] text-[#888]">
+                        ({Math.round((scrubHoverTime / (videoRef.current?.duration || 1)) * 100)}%)
+                      </span>
+                    </div>
+                  )}
 
-                <input
-                  type="range"
-                  min="0"
-                  max={duration || 100}
-                  step="0.1"
-                  value={currentTime}
-                  onChange={handleTimelineScrub}
-                  disabled={isLiveStream}
-                  className="w-full h-1.5 rounded-full cursor-pointer disabled:cursor-not-allowed appearance-none bg-white/20 transition-all hover:h-2.5 focus:outline-none accent-[#E50914]"
-                  style={{
-                    background: `linear-gradient(to right, #E50914 0%, #E50914 ${(currentTime / (duration || 1)) * 100}%, rgba(255, 255, 255, 0.2) ${(currentTime / (duration || 1)) * 100}%, rgba(255, 255, 255, 0.2) 100%)`
-                  }}
-                />
-              </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max={duration || 100}
+                    step="0.1"
+                    value={currentTime}
+                    onChange={handleTimelineScrub}
+                    disabled={isLiveStream}
+                    className="w-full h-1.5 rounded-full cursor-pointer disabled:cursor-not-allowed appearance-none bg-white/20 transition-all hover:h-2.5 focus:outline-none accent-[#E50914]"
+                    style={{
+                      background: `linear-gradient(to right, #E50914 0%, #E50914 ${(currentTime / (duration || 1)) * 100}%, rgba(255, 255, 255, 0.2) ${(currentTime / (duration || 1)) * 100}%, rgba(255, 255, 255, 0.2) 100%)`
+                    }}
+                  />
+                </div>
+              )}
 
               {/* CONTROLS BUTTONS ROW */}
               <div className="flex items-center justify-between gap-4">
@@ -817,21 +832,25 @@ export default function VideoPlayer({
                     {isPlaying ? <Pause className="w-4.5 h-4.5" /> : <Play className="w-4.5 h-4.5 fill-white" />}
                   </button>
 
-                  <button 
-                    onClick={() => seekDelta(-10)}
-                    className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/15 text-white flex items-center justify-center transition-all"
-                    title="10s Back"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                  </button>
+                  {!isLiveStream && (
+                    <>
+                      <button 
+                        onClick={() => seekDelta(-10)}
+                        className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/15 text-white flex items-center justify-center transition-all"
+                        title="10s Back"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                      </button>
 
-                  <button 
-                    onClick={() => seekDelta(10)}
-                    className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/15 text-white flex items-center justify-center transition-all"
-                    title="10s Forward"
-                  >
-                    <SkipForward className="w-4 h-4" />
-                  </button>
+                      <button 
+                        onClick={() => seekDelta(10)}
+                        className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/15 text-white flex items-center justify-center transition-all"
+                        title="10s Forward"
+                      >
+                        <SkipForward className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
 
                   {/* Volume Controller with sliding handle */}
                   <div 

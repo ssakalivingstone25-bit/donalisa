@@ -214,6 +214,10 @@ function MovieCard({
   }, []);
 
   const isSong = movie.type === 'song';
+  const isUploader = user && movie.uploadedBy === user.uid;
+  const isLocalOrGuest = !movie.uploadedBy || movie.uploadedBy === 'guest';
+  const isAdminUser = user && user.role === 'admin';
+  const canDelete = isAdminUser || isUploader || isLocalOrGuest;
 
   return (
     <div
@@ -389,7 +393,7 @@ function MovieCard({
             <Bookmark className={`w-3.5 h-3.5 ${isQueued ? 'fill-current' : ''}`} />
           </button>
 
-          {user?.role === 'admin' && onDelete && (
+          {canDelete && onDelete && (
             <button 
               onClick={(e) => onDelete(movie, e)}
               className="p-1.5 bg-black/75 backdrop-blur-md rounded-lg border border-white/5 hover:border-red-600/40 text-white/60 hover:text-red-500 transition-all hover:scale-105 cursor-pointer"
@@ -432,6 +436,14 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'movie' | 'song'>('all');
   const [loading, setLoading] = useState(true);
+
+  // Custom confirmation dialog state to replace blocked browser window.confirm
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   // Downloads tracking states
   const [downloadingMovieId, setDownloadingMovieId] = useState<string | null>(null);
@@ -624,9 +636,27 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
   // Custom local file selection and upload states
   const [customVideoFile, setCustomVideoFile] = useState<File | null>(null);
   const [customPosterFile, setCustomPosterFile] = useState<File | null>(null);
+  const [customDuration, setCustomDuration] = useState<number>(360);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStep, setUploadStep] = useState<'idle' | 'poster' | 'video' | 'saving'>('idle');
+
+  const handleVideoFileChange = (file: File | null) => {
+    setCustomVideoFile(file);
+    if (file) {
+      const url = URL.createObjectURL(file);
+      const media = document.createElement(file.type.startsWith('audio/') ? 'audio' : 'video');
+      media.src = url;
+      media.onloadedmetadata = () => {
+        if (media.duration && !isNaN(media.duration)) {
+          setCustomDuration(Math.round(media.duration));
+        }
+        URL.revokeObjectURL(url);
+      };
+    } else {
+      setCustomDuration(360);
+    }
+  };
   
   // Detailed movie modal state
   const [detailedMovie, setDetailedMovie] = useState<Movie | null>(null);
@@ -1365,18 +1395,21 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
   const handleDeleteComment = async (commentId: string) => {
     if (!user) return;
 
-    if (!window.confirm('Are you sure you want to delete this comment?')) {
-      return;
-    }
-
-    try {
-      const commentDocRef = doc(db, 'comments', commentId);
-      await deleteDoc(commentDocRef);
-      showToast('Comment deleted successfully.', 'success');
-    } catch (error: any) {
-      console.error('Error deleting comment:', error);
-      showToast('Failed to delete comment.', 'error');
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Comment',
+      message: 'Are you sure you want to permanently delete this comment? This action cannot be undone.',
+      onConfirm: async () => {
+        try {
+          const commentDocRef = doc(db, 'comments', commentId);
+          await deleteDoc(commentDocRef);
+          showToast('Comment deleted successfully.', 'success');
+        } catch (error: any) {
+          console.error('Error deleting comment:', error);
+          showToast('Failed to delete comment.', 'error');
+        }
+      }
+    });
   };
 
   // Toggle Comment Like (Like / Unlike)
@@ -1422,39 +1455,42 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
       return;
     }
 
-    if (!window.confirm(`Are you sure you want to delete "${movie.title}"?`)) {
-      return;
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: movie.type === 'song' ? 'Delete Song Track' : 'Delete Blockbuster Movie',
+      message: `Are you sure you want to permanently delete "${movie.title}"? This will remove it from the system catalog and cannot be undone.`,
+      onConfirm: async () => {
+        try {
+          // 1. Attempt delete from Firestore
+          try {
+            await deleteDoc(doc(db, 'movies', movie.id));
+          } catch (firestoreErr) {
+            console.warn('Firestore deletion failed (likely local-only or RBAC protected):', firestoreErr);
+          }
+          
+          // 2. Also check and delete from local custom movies if stored in localStorage
+          const savedCustom = localStorage.getItem('donalisa_custom_movies');
+          if (savedCustom) {
+            const localCustoms: Movie[] = JSON.parse(savedCustom);
+            const filtered = localCustoms.filter((m) => m.id !== movie.id);
+            localStorage.setItem('donalisa_custom_movies', JSON.stringify(filtered));
+          }
 
-    try {
-      // 1. Attempt delete from Firestore
-      try {
-        await deleteDoc(doc(db, 'movies', movie.id));
-      } catch (firestoreErr) {
-        console.warn('Firestore deletion failed (likely local-only or RBAC protected):', firestoreErr);
-      }
-      
-      // 2. Also check and delete from local custom movies if stored in localStorage
-      const savedCustom = localStorage.getItem('donalisa_custom_movies');
-      if (savedCustom) {
-        const localCustoms: Movie[] = JSON.parse(savedCustom);
-        const filtered = localCustoms.filter((m) => m.id !== movie.id);
-        localStorage.setItem('donalisa_custom_movies', JSON.stringify(filtered));
-      }
+          // 3. Update the movies list state
+          setMovies((prevMovies) => prevMovies.filter((m) => m.id !== movie.id));
 
-      // 3. Update the movies list state
-      setMovies((prevMovies) => prevMovies.filter((m) => m.id !== movie.id));
-
-      showToast(`Successfully deleted "${movie.title}".`, 'success');
-      
-      // Close detailed modal if opened
-      if (detailedMovie?.id === movie.id) {
-        setDetailedMovie(null);
+          showToast(`Successfully deleted "${movie.title}".`, 'success');
+          
+          // Close detailed modal if opened
+          if (detailedMovie?.id === movie.id) {
+            setDetailedMovie(null);
+          }
+        } catch (error: any) {
+          console.error('Error deleting movie:', error);
+          showToast(`Failed to complete deletion: ${error.message || 'Unknown error'}`, 'error');
+        }
       }
-    } catch (error: any) {
-      console.error('Error deleting movie:', error);
-      showToast(`Failed to complete deletion: ${error.message || 'Unknown error'}`, 'error');
-    }
+    });
   };
 
   // Helper function to upload files to Firebase Storage with reactive progress tracking
@@ -1549,7 +1585,11 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
       setUploadProgress(20);
       try {
         const posterPath = `posters/${movieID}_${customPosterFile.name}`;
-        finalPosterUrl = await uploadFileToStorage(customPosterFile, posterPath);
+        finalPosterUrl = await uploadWithTimeout(
+          uploadFileToStorage(customPosterFile, posterPath),
+          5000,
+          `indexeddb://${movieID}_poster`
+        );
       } catch (posterErr) {
         console.warn('Poster cloud upload failed, using local fallback:', posterErr);
         // Fallback to indexeddb indicator
@@ -1563,7 +1603,11 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
         const mediaPath = customType === 'song' 
           ? `music/${movieID}_${customVideoFile.name}` 
           : `movies/${movieID}_${customVideoFile.name}`;
-        finalVideoUrl = await uploadFileToStorage(customVideoFile, mediaPath);
+        finalVideoUrl = await uploadWithTimeout(
+          uploadFileToStorage(customVideoFile, mediaPath),
+          8000,
+          `indexeddb://${movieID}_video`
+        );
       } catch (videoErr) {
         console.warn('Media cloud upload failed, using local fallback:', videoErr);
         // Fallback to indexeddb indicator
@@ -1580,7 +1624,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
         posterUrl: finalPosterUrl,
         backdropUrl: finalPosterUrl, // use same uploaded poster as backdrop
         videoUrl: finalVideoUrl,
-        duration: 360, // Default tracking length
+        duration: customDuration, // Dynamic tracking length
         releaseYear: new Date().getFullYear(),
         rating: 'PG-13',
         categories: [customCategory],
@@ -1637,7 +1681,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
       setCustomTitle('');
       setCustomDesc('');
       setCustomArtist('');
-      setCustomType('movie');
+      setCustomType(adminTab === 'music' ? 'song' : 'movie');
       setCustomVideoFile(null);
       setCustomPosterFile(null);
       setShowAddModal(false);
@@ -1948,6 +1992,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
                   onClick={() => {
                     setAdminTab('movies');
                     setCustomType('movie');
+                    setCustomCategory('Action');
                   }}
                   className={`pb-3 text-xs font-bold transition-all border-b-2 font-mono uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                     adminTab === 'movies' 
@@ -1961,6 +2006,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
                   onClick={() => {
                     setAdminTab('music');
                     setCustomType('song');
+                    setCustomCategory('Pop');
                   }}
                   className={`pb-3 text-xs font-bold transition-all border-b-2 font-mono uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                     adminTab === 'music' 
@@ -2384,7 +2430,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
                         <label className="text-[10px] font-mono font-bold text-[#666] uppercase">Video Stream File</label>
                         <input 
                           type="file" 
-                          onChange={(e) => setCustomVideoFile(e.target.files?.[0] || null)}
+                          onChange={(e) => handleVideoFileChange(e.target.files?.[0] || null)}
                           accept="video/*"
                           className="w-full bg-[#181818] border border-[#222] rounded-xl px-3.5 py-2 text-xs text-white font-mono"
                           id="admin-video-file"
@@ -2563,7 +2609,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
                         <label className="text-[10px] font-mono font-bold text-[#666] uppercase">Audio / Video Media Stream File</label>
                         <input 
                           type="file" 
-                          onChange={(e) => setCustomVideoFile(e.target.files?.[0] || null)}
+                          onChange={(e) => handleVideoFileChange(e.target.files?.[0] || null)}
                           accept="audio/*,video/*"
                           className="w-full bg-[#181818] border border-[#222] rounded-xl px-3.5 py-2 text-xs text-white font-mono"
                           id="admin-audio-file"
@@ -3319,7 +3365,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
                         onDrop={(e) => {
                           e.preventDefault();
                           if (e.dataTransfer.files?.length) {
-                            setCustomVideoFile(e.dataTransfer.files[0]);
+                            handleVideoFileChange(e.dataTransfer.files[0]);
                           }
                         }}
                         onClick={() => document.getElementById('device-video-selector')?.click()}
@@ -3337,7 +3383,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
                           className="hidden"
                           onChange={(e) => {
                             if (e.target.files?.length) {
-                              setCustomVideoFile(e.target.files[0]);
+                              handleVideoFileChange(e.target.files[0]);
                             }
                           }}
                         />
@@ -3757,6 +3803,49 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
                     })
                   )}
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* CUSTOM CONFIRMATION DIALOG (No window.confirm block in iframes) */}
+      <AnimatePresence>
+        {confirmDialog && confirmDialog.isOpen && (
+          <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-[9999] backdrop-blur-md">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#0e0e0e] border border-red-500/20 p-6 rounded-2xl max-w-sm w-full space-y-5 shadow-2xl relative text-left"
+            >
+              <div className="flex items-center gap-3 border-b border-red-500/10 pb-3">
+                <div className="p-2 bg-red-600/10 text-red-500 rounded-lg">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <h3 className="text-sm font-bold text-white font-mono uppercase tracking-wider">
+                  {confirmDialog.title}
+                </h3>
+              </div>
+              <p className="text-xs text-[#aaa] leading-relaxed font-sans">
+                {confirmDialog.message}
+              </p>
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  onClick={() => setConfirmDialog(null)}
+                  className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-800 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    confirmDialog.onConfirm();
+                    setConfirmDialog(null);
+                  }}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Confirm Delete
+                </button>
               </div>
             </motion.div>
           </div>
