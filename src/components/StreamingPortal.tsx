@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Play, Heart, Search, Sparkles, Tv, Clock, 
+  Play, Pause, Heart, Search, Sparkles, Tv, Clock, 
   Trash2, Plus, Info, HelpCircle, Film, Radio, 
   Flame, ShieldCheck, AlertCircle, Loader2, User, Check, Download,
   UploadCloud, FileVideo, Image, Calendar, Eye, X, Star, Bookmark, ChevronLeft, ChevronRight, SlidersHorizontal,
-  Music, MessageSquare, ThumbsUp, MessageCircle, Globe
+  Music, MessageSquare, ThumbsUp, MessageCircle, Globe, Briefcase, Building2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Movie, FavoriteItem, WatchHistoryItem, Comment, CommentLike } from '@/types';
@@ -22,7 +22,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import VideoPlayer from './VideoPlayer';
 import AudioPlayer from './AudioPlayer';
 import UserProfile from './UserProfile';
-import { AdminLiveBroadcastView, UserLiveTvView, LiveBroadcaster } from './LiveBroadcastManager';
+import OfflineImage from './OfflineImage';
 import { useNotificationStore } from '@/store/notificationStore';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell
@@ -232,11 +232,10 @@ function MovieCard({
     >
       <div className="relative w-full h-full bg-[#181818] overflow-hidden flex-1">
         {/* Poster Image */}
-        <img 
+        <OfflineImage 
           src={movie.posterUrl} 
           alt={movie.title} 
           className={`w-full h-full object-cover transition-all duration-700 ${showPreview && !isSong ? 'opacity-0 scale-105' : 'opacity-100 scale-100'} ${isSong && hovered ? 'scale-102 ease-out' : ''}`}
-          referrerPolicy="no-referrer"
         />
 
         {/* Atmospheric Gradients */}
@@ -419,17 +418,18 @@ function MovieCard({
 }
 
 interface StreamingPortalProps {
-  activeTab?: 'catalog' | 'profile' | 'admin_dashboard' | 'live_tv' | 'live_broadcast' | 'downloads';
-  setActiveTab?: (tab: 'catalog' | 'profile' | 'admin_dashboard' | 'live_tv' | 'live_broadcast' | 'downloads') => void;
+  activeTab?: 'catalog' | 'profile' | 'admin_dashboard' | 'downloads';
+  setActiveTab?: (tab: 'catalog' | 'profile' | 'admin_dashboard' | 'downloads') => void;
+  onOpenBizLink?: () => void;
 }
 
-export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPortalProps = {}) {
+export default function StreamingPortal({ activeTab, setActiveTab, onOpenBizLink }: StreamingPortalProps = {}) {
   const { user } = useAuthStore();
-  const { playMovie, currentMovie, closePlayer, theaterMode } = usePlayerStore();
+  const { playMovie, currentMovie, closePlayer, theaterMode, isPlaying, togglePlay } = usePlayerStore();
   const { searchQuery, setSearchQuery } = useSearchStore();
   const { initListeners } = useNotificationStore();
 
-  const [localActiveTab, setLocalActiveTab] = useState<'catalog' | 'profile' | 'admin_dashboard' | 'live_tv' | 'live_broadcast' | 'downloads'>('catalog');
+  const [localActiveTab, setLocalActiveTab] = useState<'catalog' | 'profile' | 'admin_dashboard' | 'downloads'>('catalog');
   const activePortalTab = activeTab !== undefined ? activeTab : localActiveTab;
   const setActivePortalTab = setActiveTab !== undefined ? setActiveTab : setLocalActiveTab;
   const [movies, setMovies] = useState<Movie[]>([]);
@@ -511,6 +511,109 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
     }
   };
 
+  const generateFallbackCover = (movie: Movie): Promise<Blob> => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 400;
+      canvas.height = 600;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(new Blob());
+        return;
+      }
+
+      // 1. Draw a beautiful dark forest green & obsidian linear gradient background
+      const grad = ctx.createLinearGradient(0, 0, 0, 600);
+      grad.addColorStop(0, '#041d14'); // Very dark emerald
+      grad.addColorStop(0.5, '#0a2d1d'); // Rich forest green
+      grad.addColorStop(1, '#020b07'); // Deep moss charcoal
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 400, 600);
+
+      // 2. Decorative organic leaf veins/concentric circular ripples (Nature motif)
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.15)'; // Emerald green lines
+      ctx.lineWidth = 1.5;
+      for (let r = 50; r < 500; r += 50) {
+        ctx.beginPath();
+        ctx.arc(200, 260, r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      
+      // Abstract natural curve lines
+      ctx.strokeStyle = 'rgba(52, 211, 153, 0.1)'; 
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, 100);
+      ctx.quadraticCurveTo(200, -50, 400, 100);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, 500);
+      ctx.quadraticCurveTo(200, 650, 400, 500);
+      ctx.stroke();
+
+      // 3. Central emerald-glowing heart
+      const glowGrad = ctx.createRadialGradient(200, 260, 10, 200, 260, 120);
+      glowGrad.addColorStop(0, 'rgba(16, 185, 129, 0.25)');
+      glowGrad.addColorStop(1, 'rgba(16, 185, 129, 0)');
+      ctx.fillStyle = glowGrad;
+      ctx.beginPath();
+      ctx.arc(200, 260, 120, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 4. Draw brand header
+      ctx.fillStyle = '#10B981'; // Emerald
+      ctx.font = 'bold 14px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('DONALISA OFFLINE STREAMING', 200, 70);
+
+      // 5. Draw movie/song title (wrap text beautifully)
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 26px sans-serif';
+      const words = movie.title.split(' ');
+      let line = '';
+      let y = 240;
+      const maxWidth = 340;
+      const lineHeight = 34;
+      
+      for (let n = 0; n < words.length; n++) {
+        const testLine = line + words[n] + ' ';
+        const metrics = ctx.measureText(testLine);
+        if (metrics.width > maxWidth && n > 0) {
+          ctx.fillText(line, 200, y);
+          line = words[n] + ' ';
+          y += lineHeight;
+        } else {
+          line = testLine;
+        }
+      }
+      ctx.fillText(line, 200, y);
+
+      // 6. Draw Artist or Category
+      const subtitle = movie.artist || (movie.categories && movie.categories[0]) || 'Premium Nature Stream';
+      ctx.fillStyle = '#34D399'; // Mint green
+      ctx.font = 'bold 13px sans-serif';
+      ctx.fillText(subtitle.toUpperCase(), 200, y + 40);
+
+      // 7. Draw a professional play icon/node
+      ctx.fillStyle = '#10B981';
+      ctx.beginPath();
+      ctx.moveTo(188, y + 80);
+      ctx.lineTo(188, y + 110);
+      ctx.lineTo(218, y + 95);
+      ctx.closePath();
+      ctx.fill();
+
+      // 8. Footer watermark
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.font = '10px monospace';
+      ctx.fillText('SECURE LOCAL DOWNLOAD', 200, 540);
+
+      canvas.toBlob((blob) => {
+        resolve(blob || new Blob());
+      }, 'image/jpeg', 0.9);
+    });
+  };
+
   const handleDownloadMovie = async (movie: Movie) => {
     if (downloadingMovieId) {
       showToast("Another download is already in progress!", "error");
@@ -543,6 +646,16 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
         }
       } catch (err) {
         console.warn('Poster direct fetch failed (CORS/Offline), using fallback', err);
+      }
+
+      // Generate local graphic cover image if downloading real image failed
+      if (!posterBlob) {
+        try {
+          posterBlob = await generateFallbackCover(movie);
+          await saveFileToLocalDB(`downloaded_poster_${movie.id}`, posterBlob);
+        } catch (fallbackErr) {
+          console.warn('Fallback poster generation failed:', fallbackErr);
+        }
       }
 
       // Attempt real video download
@@ -585,7 +698,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
       const offlineMovie: Movie = {
         ...movie,
         videoUrl: `indexeddb://downloaded_video_${movie.id}`,
-        posterUrl: posterBlob ? `indexeddb://downloaded_poster_${movie.id}` : movie.posterUrl
+        posterUrl: `indexeddb://downloaded_poster_${movie.id}`
       };
 
       await saveDownloadedMovieDetails(movie.id, offlineMovie);
@@ -626,6 +739,15 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
   const [favorites, setFavorites] = useState<string[]>([]);
   const [watchProgress, setWatchProgress] = useState<{ [id: string]: number }>({});
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
+  const [isMusicMinimized, setIsMusicMinimized] = useState(false);
+  const [minimizedSong, setMinimizedSong] = useState<Movie | null>(null);
+
+  useEffect(() => {
+    if (selectedMovie && selectedMovie.type !== 'song') {
+      setIsMusicMinimized(false);
+      setMinimizedSong(null);
+    }
+  }, [selectedMovie]);
 
   // Custom movie stream form inputs
   const [showAddModal, setShowAddModal] = useState(false);
@@ -691,7 +813,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
 
   // Admin moderation state
   const [allComments, setAllComments] = useState<Comment[]>([]);
-  const [adminTab, setAdminTab] = useState<'analytics' | 'movies' | 'music' | 'comments' | 'socials' | 'broadcast'>('analytics');
+  const [adminTab, setAdminTab] = useState<'analytics' | 'movies' | 'music' | 'comments' | 'socials'>('analytics');
 
   // Social media links state for admin panel editing
   const [adminFacebook, setAdminFacebook] = useState('');
@@ -790,6 +912,10 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
         setLoading(false);
       }, (error) => {
         console.error('Firestore real-time sync error:', error);
+        if (error.code === 'permission-denied' || error.message?.includes('permission')) {
+          showToast('Firestore Permission Error: Please ensure you have pasted the firestore.rules into your Firebase Console.', 'error');
+          handleFirestoreError(error, OperationType.GET, 'movies');
+        }
         // Fallback to local catalog
         const savedCustom = localStorage.getItem('donalisa_custom_movies');
         const localCustoms: Movie[] = savedCustom ? JSON.parse(savedCustom) : [];
@@ -887,6 +1013,9 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
       setFavorites(favMovieIds);
     }, (err) => {
       console.warn('Favorites sync failed:', err);
+      if (err.code === 'permission-denied' || err.message?.includes('permission')) {
+        handleFirestoreError(err, OperationType.LIST, 'favorites');
+      }
       // Fallback to local storage
       const savedFavs = localStorage.getItem('donalisa_favs');
       if (savedFavs) setFavorites(JSON.parse(savedFavs));
@@ -913,6 +1042,9 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
       setWatchProgress(progressMap);
     }, (err) => {
       console.warn('Watch history sync failed:', err);
+      if (err.code === 'permission-denied' || err.message?.includes('permission')) {
+        handleFirestoreError(err, OperationType.LIST, 'watchHistory');
+      }
     });
 
     return () => unsubscribe();
@@ -977,6 +1109,9 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
       setWatchlist(watchlistMovieIds);
     }, (error) => {
       console.error('Error fetching watchlist:', error);
+      if (error.code === 'permission-denied' || error.message?.includes('permission')) {
+        handleFirestoreError(error, OperationType.LIST, 'watchlist');
+      }
     });
 
     return () => unsubscribe();
@@ -1000,6 +1135,9 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
       setAllRatings(ratingsMap);
     }, (error) => {
       console.warn('Error fetching all ratings map:', error);
+      if (error.code === 'permission-denied' || error.message?.includes('permission')) {
+        handleFirestoreError(error, OperationType.GET, 'ratings');
+      }
     });
 
     return () => unsubscribe();
@@ -1033,6 +1171,9 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
       setActiveViewers(counts);
     }, (error) => {
       console.warn('Error fetching active viewers map:', error);
+      if (error.code === 'permission-denied' || error.message?.includes('permission')) {
+        handleFirestoreError(error, OperationType.GET, 'active_viewers');
+      }
     });
 
     return () => unsubscribe();
@@ -1057,6 +1198,9 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
       setComments(list);
     }, (error) => {
       console.error('Error fetching comments:', error);
+      if (error.code === 'permission-denied' || error.message?.includes('permission')) {
+        handleFirestoreError(error, OperationType.LIST, 'comments');
+      }
     });
 
     return () => unsubscribe();
@@ -1084,6 +1228,9 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
       setCommentLikes(map);
     }, (error) => {
       console.warn('Error fetching comment likes:', error);
+      if (error.code === 'permission-denied' || error.message?.includes('permission')) {
+        handleFirestoreError(error, OperationType.LIST, 'comment_likes');
+      }
     });
 
     return () => unsubscribe();
@@ -1108,6 +1255,9 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
       setAllComments(list);
     }, (error) => {
       console.warn('Error fetching moderation comments:', error);
+      if (error.code === 'permission-denied' || error.message?.includes('permission')) {
+        handleFirestoreError(error, OperationType.LIST, 'comments');
+      }
     });
 
     return () => unsubscribe();
@@ -1695,8 +1845,19 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
     }
   };
 
+  // Exclude live broadcasts / studio stream from the streaming catalog
+  const catalogMoviesOnly = movies.filter((m) => {
+    return !(
+      m.id === 'camera-live' || 
+      m.videoUrl?.startsWith('camera-live://') || 
+      m.rating === 'LIVE' || 
+      m.categories?.includes('LIVE EVENT') ||
+      m.categories?.includes('STUDIO')
+    );
+  });
+
   // Filter movies with robust fuzzy search
-  const filteredMoviesByGenre = movies.filter((m) => {
+  const filteredMoviesByGenre = catalogMoviesOnly.filter((m) => {
     const matchesCategory = selectedCategory === 'All' || m.categories.includes(selectedCategory);
     const matchesMediaType = mediaTypeFilter === 'all' || (m.type === mediaTypeFilter || (!m.type && mediaTypeFilter === 'movie'));
     return matchesCategory && matchesMediaType;
@@ -1727,9 +1888,9 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 
-  const fuzzyResults = searchQuery ? fuzzySearchMovies(movies, searchQuery) : [];
+  const fuzzyResults = searchQuery ? fuzzySearchMovies(catalogMoviesOnly, searchQuery) : [];
 
-  const featuredMovie = movies.find((m) => m.featured) || movies[0] || null;
+  const featuredMovie = catalogMoviesOnly.find((m) => m.featured) || catalogMoviesOnly[0] || null;
 
   return (
     <div className="space-y-8 animate-fadeIn text-white">
@@ -1760,8 +1921,8 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
       </AnimatePresence>
 
       {/* 1. IMMERSIVE VIDEO/AUDIO PLAYER ACTIVE VIEW */}
-      {selectedMovie ? (
-        <div className="space-y-4">
+      {selectedMovie && (
+        <div className={isMusicMinimized ? "hidden" : "space-y-4 animate-fadeIn"}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className={`w-2.5 h-2.5 rounded-full animate-ping ${selectedMovie.type === 'song' ? 'bg-cyan-400' : 'bg-[#E50914]'}`} />
@@ -1769,15 +1930,32 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
                 {selectedMovie.type === 'song' ? 'Currently Playing Track' : 'Currently Streaming Cinema'}
               </span>
             </div>
-            <button 
-              onClick={() => {
-                setSelectedMovie(null);
-                closePlayer();
-              }}
-              className="text-xs font-mono text-[#888] hover:text-white transition-colors flex items-center gap-1 bg-[#1a1a1a] border border-[#222] px-3 py-1.5 rounded-xl cursor-pointer"
-            >
-              Close Stream & Return to Catalog
-            </button>
+            <div className="flex items-center gap-2">
+              {selectedMovie.type === 'song' && (
+                <button 
+                  onClick={() => {
+                    setIsMusicMinimized(true);
+                    setMinimizedSong(selectedMovie);
+                    showToast(`"${selectedMovie.title}" minimized to background 🎵`, "info");
+                  }}
+                  className="text-xs font-mono text-cyan-400 hover:text-white transition-colors flex items-center gap-1.5 bg-[#0a232e] hover:bg-cyan-950/40 border border-cyan-500/25 px-3.5 py-1.5 rounded-xl cursor-pointer shadow-lg shadow-cyan-500/5"
+                >
+                  <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+                  <span>Minimize to Background</span>
+                </button>
+              )}
+              <button 
+                onClick={() => {
+                  setSelectedMovie(null);
+                  closePlayer();
+                  setIsMusicMinimized(false);
+                  setMinimizedSong(null);
+                }}
+                className="text-xs font-mono text-[#888] hover:text-white transition-colors flex items-center gap-1 bg-[#1a1a1a] border border-[#222] px-3.5 py-1.5 rounded-xl cursor-pointer"
+              >
+                Close Stream & Return
+              </button>
+            </div>
           </div>
 
           {selectedMovie.type === 'song' ? (
@@ -1845,8 +2023,11 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
             </motion.div>
           )}
         </div>
-      ) : (
-        <div className="space-y-8">
+      )}
+
+      {/* 2. MAIN CATALOG VIEW */}
+      {(!selectedMovie || isMusicMinimized) && (
+        <div className="space-y-8 animate-fadeIn">
           {/* Immersive Portal Navigation */}
           <div className="flex items-center justify-between border-b border-[#1c1c1c] pb-4 shrink-0">
             <div className="flex items-center gap-1.5 bg-[#111111] border border-[#222222] rounded-xl p-1.5 overflow-x-auto">
@@ -1860,17 +2041,6 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
               >
                 <Film className="w-3.5 h-3.5" />
                 <span>Streaming Catalog</span>
-              </button>
-              <button
-                onClick={() => setActivePortalTab('live_tv')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
-                  activePortalTab === 'live_tv' 
-                    ? 'bg-red-600 text-white shadow-md shadow-red-600/20' 
-                    : 'text-[#888888] hover:text-white hover:bg-[#1a1a1a]'
-                }`}
-              >
-                <Tv className="w-3.5 h-3.5 text-red-500 animate-pulse" />
-                <span>Live TV</span>
               </button>
               <button
                 onClick={() => setActivePortalTab('profile')}
@@ -1894,6 +2064,15 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
                 <Download className="w-3.5 h-3.5 text-cyan-400" />
                 <span>My Downloads</span>
               </button>
+              
+              {/* BizLink Uganda Portal Tab Trigger */}
+              <button
+                onClick={() => onOpenBizLink?.()}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer text-[#00E5FF] hover:text-white hover:bg-cyan-950/30 border border-cyan-500/20"
+              >
+                <Briefcase className="w-3.5 h-3.5 text-yellow-400" />
+                <span>BizLink Uganda</span>
+              </button>
               {user?.role === 'admin' && (
                 <>
                   <button
@@ -1906,17 +2085,6 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
                   >
                     <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
                     <span>Admin Dashboard</span>
-                  </button>
-                  <button
-                    onClick={() => setActivePortalTab('live_broadcast')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
-                      activePortalTab === 'live_broadcast' 
-                        ? 'bg-red-600 text-white shadow-md shadow-red-600/20' 
-                        : 'text-[#888888] hover:text-white hover:bg-[#1a1a1a]'
-                    }`}
-                  >
-                    <Radio className="w-3.5 h-3.5 text-[#00E5FF]" />
-                    <span>Live Broadcast</span>
                   </button>
                 </>
               )}
@@ -2035,16 +2203,6 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
                   }`}
                 >
                   <Globe className="w-4 h-4 text-red-500" /> Social Links Settings
-                </button>
-                <button
-                  onClick={() => setAdminTab('broadcast')}
-                  className={`pb-3 text-xs font-bold transition-all border-b-2 font-mono uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-                    adminTab === 'broadcast' 
-                      ? 'border-red-600 text-white' 
-                      : 'border-transparent text-[#666] hover:text-[#ccc]'
-                  }`}
-                >
-                  <Radio className="w-4 h-4 text-[#00E5FF]" /> Live TV Broadcaster
                 </button>
               </div>
 
@@ -2485,7 +2643,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
                             <div key={`admin-${movie.id}`} className="bg-[#0c0c0c] border border-[#1f1f1f] p-3.5 rounded-2xl flex gap-4 items-center justify-between relative group hover:border-[#222]">
                               <div className="flex gap-3.5 items-center min-w-0">
                                 <div className="w-11 h-14 bg-zinc-900 rounded-lg overflow-hidden shrink-0 relative">
-                                  <img src={movie.posterUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                  <OfflineImage src={movie.posterUrl} alt="" className="w-full h-full object-cover" />
                                 </div>
                                 <div className="min-w-0 space-y-1 text-left">
                                   <div className="flex items-center gap-1.5">
@@ -2664,7 +2822,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
                             <div key={`admin-${movie.id}`} className="bg-[#0c0c0c] border border-[#1f1f1f] p-3.5 rounded-2xl flex gap-4 items-center justify-between relative group hover:border-[#222]">
                               <div className="flex gap-3.5 items-center min-w-0">
                                 <div className="w-11 h-14 bg-zinc-900 rounded-lg overflow-hidden shrink-0 relative">
-                                  <img src={movie.posterUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                  <OfflineImage src={movie.posterUrl} alt="" className="w-full h-full object-cover" />
                                 </div>
                                 <div className="min-w-0 space-y-1 text-left">
                                   <div className="flex items-center gap-1.5">
@@ -2711,8 +2869,6 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
                     </div>
                   </div>
                 </div>
-              ) : adminTab === 'broadcast' ? (
-                <LiveBroadcaster movies={movies} showToast={showToast} />
               ) : null}
             </div>
           ) : activePortalTab === 'downloads' ? (
@@ -2759,11 +2915,10 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
                       >
                         <div className="relative w-full h-full bg-[#181818] overflow-hidden flex-1">
                           {/* Poster Image */}
-                          <img 
+                          <OfflineImage 
                             src={movie.posterUrl} 
                             alt={movie.title} 
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                            referrerPolicy="no-referrer"
                           />
                           <div className="absolute top-2.5 right-2.5 bg-green-500 border border-green-600 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold text-black flex items-center gap-0.5 shadow-md">
                             <Check className="w-2.5 h-2.5 stroke-[3px]" /> OFFLINE READY
@@ -2799,10 +2954,6 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
                 </div>
               )}
             </div>
-          ) : activePortalTab === 'live_tv' ? (
-            <UserLiveTvView movies={movies} user={user} />
-          ) : activePortalTab === 'live_broadcast' && user?.role === 'admin' ? (
-            <AdminLiveBroadcastView movies={movies} showToast={showToast} />
           ) : (
             <>
               {/* HERO SPOTLIGHT BANNER */}
@@ -2899,11 +3050,10 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
                     className="group bg-[#111111]/80 hover:bg-[#151515] border border-[#222222] hover:border-red-600/30 p-3 rounded-2xl flex gap-3.5 items-center transition-all cursor-pointer relative"
                   >
                     <div className="w-14 h-16 bg-[#222] rounded-lg overflow-hidden shrink-0 relative">
-                      <img 
+                      <OfflineImage 
                         src={movie.posterUrl} 
                         alt={movie.title} 
                         className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
-                        referrerPolicy="no-referrer"
                       />
                       <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
                         <Play className="w-4 h-4 text-white fill-white" />
@@ -2957,7 +3107,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {movies.filter((m) => watchProgress[m.id] !== undefined && watchProgress[m.id] > 5).map((movie) => {
+            {catalogMoviesOnly.filter((m) => watchProgress[m.id] !== undefined && watchProgress[m.id] > 5).map((movie) => {
               const seconds = watchProgress[movie.id];
               const progressPct = Math.min(100, Math.round((seconds / (movie.duration || 360)) * 100));
               
@@ -2968,11 +3118,10 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
                   className="bg-[#111] hover:bg-[#151515] border border-[#222] hover:border-[#333] p-3.5 rounded-2xl flex gap-3.5 items-center transition-all cursor-pointer relative group"
                 >
                   <div className="w-16 h-20 bg-[#222] rounded-lg overflow-hidden shrink-0 relative">
-                    <img 
+                    <OfflineImage 
                       src={movie.posterUrl} 
                       alt={movie.title} 
                       className="w-full h-full object-cover group-hover:scale-105 transition-all"
-                      referrerPolicy="no-referrer"
                     />
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                       <Play className="w-6 h-6 text-white fill-white scale-90 group-hover:scale-105 transition-all" />
@@ -3026,7 +3175,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {movies.filter((m) => watchlist.includes(m.id)).map((movie) => {
+            {catalogMoviesOnly.filter((m) => watchlist.includes(m.id)).map((movie) => {
               const isFav = favorites.includes(movie.id);
               const isQueued = true;
               const hasProgress = watchProgress[movie.id] !== undefined;
@@ -3520,11 +3669,10 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
               <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
                 {/* Poster column */}
                 <div className="md:col-span-2 aspect-[2/3] w-full bg-[#181818] relative">
-                  <img 
+                  <OfflineImage 
                     src={detailedMovie.posterUrl} 
                     alt={detailedMovie.title} 
                     className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0e0e0e] via-transparent to-black/30 md:hidden" />
                 </div>
@@ -3849,6 +3997,67 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* PERSISTENT FLOATING MINI-PLAYER FOR MINIMIZED AUDIO STREAM */}
+      <AnimatePresence>
+        {isMusicMinimized && minimizedSong && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 30 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 30 }}
+            className="fixed bottom-6 right-6 z-50 w-80 bg-[#0c0c0f]/95 backdrop-blur-md border border-cyan-500/30 rounded-2xl shadow-2xl shadow-cyan-500/20 p-3.5 flex items-center gap-3.5 animate-in fade-in slide-in-from-bottom-5 duration-300"
+          >
+            {/* Small revolving vinyl record/cover art */}
+            <div className={`w-12 h-12 rounded-full overflow-hidden shrink-0 border border-cyan-400/20 relative ${isPlaying ? 'animate-spin' : ''}`} style={{ animationDuration: '6s' }}>
+              <OfflineImage src={minimizedSong.posterUrl} className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-black/15" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 bg-[#0c0c0f] border border-cyan-400/50 rounded-full" />
+            </div>
+            
+            {/* Song details */}
+            <div className="flex-1 min-w-0 text-left">
+              <h4 className="text-xs font-bold text-white truncate leading-tight">{minimizedSong.title}</h4>
+              <p className="text-[10px] text-cyan-400 font-semibold truncate font-mono mt-0.5">{minimizedSong.artist || 'Various Artists'}</p>
+            </div>
+
+            {/* Control buttons */}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Play / Pause button */}
+              <button 
+                onClick={togglePlay}
+                title={isPlaying ? "Pause Music" : "Play Music"}
+                className="p-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 hover:text-white transition-all cursor-pointer border border-cyan-500/10"
+              >
+                {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
+              </button>
+
+              <button 
+                onClick={() => {
+                  setIsMusicMinimized(false);
+                  setMinimizedSong(null);
+                }}
+                title="Restore Player"
+                className="p-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 hover:text-white transition-all cursor-pointer border border-cyan-500/10"
+              >
+                <Sparkles className="w-4 h-4 animate-pulse" />
+              </button>
+              <button 
+                onClick={() => {
+                  setIsMusicMinimized(false);
+                  setMinimizedSong(null);
+                  setSelectedMovie(null);
+                  closePlayer();
+                  showToast("Background audio playback stopped.", "info");
+                }}
+                title="Stop & Close Music"
+                className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-white transition-all cursor-pointer border border-red-500/10"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

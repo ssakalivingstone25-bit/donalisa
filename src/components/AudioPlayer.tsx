@@ -6,6 +6,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Movie } from '@/types';
 import { usePlayerStore } from '@/store/playerStore';
+import OfflineImage from './OfflineImage';
 
 // Helper to initialize IndexedDB for local-first high-speed media storage
 const initMediaDB = (): Promise<IDBDatabase> => {
@@ -258,11 +259,10 @@ export default function AudioPlayer({
           {/* Album Cover Art (Center of disk) */}
           <div className="absolute inset-[30%] rounded-full bg-[#1a1a1a] border-4 border-[#090a0f] overflow-hidden flex items-center justify-center shadow-inner z-10">
             {movie.posterUrl ? (
-              <img 
+              <OfflineImage 
                 src={movie.posterUrl} 
                 alt={movie.title} 
                 className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
               />
             ) : (
               <Music className="w-8 h-8 text-cyan-400" />

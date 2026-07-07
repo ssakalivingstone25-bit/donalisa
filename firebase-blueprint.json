@@ -202,6 +202,72 @@
         "adScheduleDuration": { "type": "number", "description": "Ad popup display duration in seconds" }
       },
       "required": ["activeMovieId", "status", "tickerUpdates", "startedAt"]
+    },
+    "BizShop": {
+      "title": "BizShop",
+      "description": "Virtual business shop registered inside Kampala Arcade",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "shopName": { "type": "string" },
+        "arcadeId": { "type": "string" },
+        "shopNumber": { "type": "string" },
+        "description": { "type": "string" },
+        "verified": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "ownerId", "shopName", "arcadeId", "shopNumber"]
+    },
+    "BizProduct": {
+      "title": "BizProduct",
+      "description": "Product listing stocked in a virtual retail shop",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "shopId": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "arcadeId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "imageUrl": { "type": "string" },
+        "stock": { "type": "number" },
+        "category": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "shopId", "ownerId", "title", "price", "stock"]
+    },
+    "BizTransaction": {
+      "title": "BizTransaction",
+      "description": "Trade escrow record for purchased products",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "productId": { "type": "string" },
+        "productTitle": { "type": "string" },
+        "price": { "type": "number" },
+        "sellerId": { "type": "string" },
+        "sellerName": { "type": "string" },
+        "buyerId": { "type": "string" },
+        "buyerName": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "productId", "productTitle", "price", "sellerId", "buyerId"]
+    },
+    "BizWallet": {
+      "title": "BizWallet",
+      "description": "User virtual currency balance in Kampala UGX",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "balanceUGX": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "balanceUGX"]
     }
   },
   "firestore": {
@@ -260,6 +326,22 @@
     "/settings/{settingId}": {
       "schema": "Setting",
       "description": "User specific app configuration"
+    },
+    "/biz_shops/{shopId}": {
+      "schema": "BizShop",
+      "description": "User established retail outlets in Kampala arcades"
+    },
+    "/biz_products/{productId}": {
+      "schema": "BizProduct",
+      "description": "Products listed inside shops for buying/selling"
+    },
+    "/biz_transactions/{transactionId}": {
+      "schema": "BizTransaction",
+      "description": "Historical trading escrow accounts and ledgers"
+    },
+    "/biz_wallets/{walletId}": {
+      "schema": "BizWallet",
+      "description": "Virtual UGX balance accounts for users"
     }
   }
 }

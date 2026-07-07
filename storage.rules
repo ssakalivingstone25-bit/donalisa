@@ -14,8 +14,10 @@ service firebase.storage {
 
     function isAdmin() {
       return isSignedIn() && (
-        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
-        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin'
+        request.auth.token.email == 'ssakalivingstone25@gmail.com' ||
+        request.auth.token.email == 'admin@donalisa.com' ||
+        (firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
     }
 

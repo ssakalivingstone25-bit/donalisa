@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { db } from '@/firebase/config';
+import { handleFirestoreError, OperationType } from '@/lib/firestoreErrors';
 import { 
   collection, 
   query, 
@@ -151,6 +152,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
         });
       }, (error) => {
         console.warn('Notifications stream error (using local state fallback):', error);
+        if (error.code === 'permission-denied' || error.message?.includes('permission')) {
+          handleFirestoreError(error, OperationType.LIST, 'notifications');
+        }
       });
 
       // 2. Listen for ALL ratings to detect real-time ratings on watched movies
@@ -186,6 +190,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
         });
       }, (error) => {
         console.warn('Ratings notification stream error:', error);
+        if (error.code === 'permission-denied' || error.message?.includes('permission')) {
+          handleFirestoreError(error, OperationType.GET, 'ratings');
+        }
       });
 
       // Return cleanup function to unsubscribe both snapshot listeners

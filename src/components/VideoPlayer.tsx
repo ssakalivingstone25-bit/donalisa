@@ -8,6 +8,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import Hls from 'hls.js';
 import { Movie } from '@/types';
 import { usePlayerStore } from '@/store/playerStore';
+import { useAuthStore } from '@/store/authStore';
+import logoImg from '@/assets/images/donalisa_logo_1782938170546.jpg';
 import { 
   createSubtitleBlobUrl, 
   englishSubtitleContent, 
@@ -103,6 +105,44 @@ export default function VideoPlayer({
   const [showSubtitlePopover, setShowSubtitlePopover] = useState(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [errorDetails, setErrorDetails] = useState<string | null>(null);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Automated reconnect loop for live broadcast TV channel to prevent error screen
+  const handleLiveError = () => {
+    if (!isLiveStream) return;
+    setIsReconnecting(true);
+    setIsBuffering(false);
+    
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+    }
+    
+    reconnectTimeoutRef.current = setTimeout(() => {
+      const video = videoRef.current;
+      if (video) {
+        console.log('Donalisa Live: Re-initializing stream source...');
+        video.load();
+        
+        if (movie.duration > 0) {
+          const currentOffset = liveOffsetRef.current % movie.duration;
+          try {
+            video.currentTime = currentOffset;
+          } catch (e) {}
+        }
+        
+        video.play()
+          .then(() => {
+            setIsReconnecting(false);
+            setErrorDetails(null);
+          })
+          .catch((err) => {
+            console.warn('Donalisa Live: Stream reconnect failed. Retrying...', err);
+            handleLiveError();
+          });
+      }
+    }, 4000);
+  };
   const [scrubHoverTime, setScrubHoverTime] = useState<number | null>(null);
   const [scrubHoverX, setScrubHoverX] = useState<number>(0);
 
@@ -179,6 +219,13 @@ export default function VideoPlayer({
     const setupPlayer = async () => {
       let urlToLoad = movie.videoUrl;
 
+      const isRemoteBlob = urlToLoad.startsWith('blob:') && useAuthStore.getState().user?.role !== 'admin';
+      if (isRemoteBlob) {
+        setIsReconnecting(true);
+        setIsBuffering(false);
+        return;
+      }
+
       if (movie.videoUrl.startsWith('indexeddb://')) {
         const dbId = movie.videoUrl.replace('indexeddb://', '');
         const blobUrl = await getFileFromLocalDB(dbId);
@@ -220,6 +267,10 @@ export default function VideoPlayer({
           hls.on(Hls.Events.ERROR, (event, data) => {
             if (!active) return;
             if (data.fatal) {
+              if (isLiveStream) {
+                handleLiveError();
+                return;
+              }
               switch (data.type) {
                 case Hls.ErrorTypes.NETWORK_ERROR:
                   setErrorDetails('Cinematic stream connection failed. Attempting recovery...');
@@ -266,12 +317,18 @@ export default function VideoPlayer({
       if (localBlobUrl) {
         URL.revokeObjectURL(localBlobUrl);
       }
+      if (video) {
+        video.srcObject = null;
+      }
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
       if (feedbackTimer.current) {
         clearTimeout(feedbackTimer.current);
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
       }
     };
   }, [movie.videoUrl, movie.id]);
@@ -551,12 +608,19 @@ export default function VideoPlayer({
       <video
         ref={videoRef}
         id="donalisa-raw-video-element"
+        autoPlay
+        playsInline
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onWaiting={() => setIsBuffering(true)}
-        onPlaying={() => setIsBuffering(false)}
+        onPlaying={() => {
+          setIsBuffering(false);
+          setIsReconnecting(false);
+        }}
         onError={() => {
-          if (movie.isLocalSessionFile) {
+          if (isLiveStream) {
+            handleLiveError();
+          } else if (movie.isLocalSessionFile) {
             setErrorDetails('This is a local device file from a previous session. Because browser object URLs expire when you reload or close the app, please edit or re-upload this movie to select the file from your device again.');
           } else {
             setErrorDetails('Failed to load video stream. Please verify the streaming URL is valid and accessible.');
@@ -651,7 +715,48 @@ export default function VideoPlayer({
           </motion.div>
         )}
 
-        {errorDetails && (
+        {isReconnecting && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="absolute inset-0 bg-[#000]/95 flex flex-col items-center justify-center gap-6 z-30 p-6 text-center select-none"
+          >
+            {/* Pulsing logo with dynamic loading circle */}
+            <div className="relative">
+              <div className="absolute inset-0 rounded-full bg-rose-500/20 blur-lg animate-pulse" />
+              <div className="w-24 h-24 md:w-32 md:h-32 rounded-full border border-rose-500/30 flex items-center justify-center relative">
+                <img 
+                  src={logoImg} 
+                  alt="Donalisa TV" 
+                  referrerPolicy="no-referrer"
+                  className="w-20 h-20 md:w-28 md:h-28 rounded-full object-cover shadow-2xl relative z-10"
+                />
+                <div className="absolute inset-0 rounded-full border-2 border-t-rose-500 border-r-rose-500 border-b-transparent border-l-transparent animate-spin" />
+              </div>
+            </div>
+            
+            <div className="max-w-md space-y-3">
+              <h4 className="text-lg font-black text-white uppercase tracking-wider font-mono flex items-center justify-center gap-2">
+                <Tv className="w-5 h-5 text-rose-500 animate-pulse" />
+                <span>
+                  {movie.videoUrl.startsWith('blob:') ? 'Broadcaster Uploading Media' : 'CONNECTING TO LIVE FEED'}
+                </span>
+              </h4>
+              <p className="text-xs text-zinc-400 leading-relaxed max-w-xs mx-auto">
+                {movie.videoUrl.startsWith('blob:') 
+                  ? 'The administrator is securely uploading this media file to high-speed cloud storage. Telecast will start playing automatically for all synchronized viewers shortly!' 
+                  : 'Re-establishing connection with DonaLisa Live Broadcast. Please hold on, stream will resume automatically...'}
+              </p>
+            </div>
+            
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 rounded-xl text-[10px] font-bold text-rose-400 uppercase tracking-widest font-mono animate-pulse">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+              <span>STANDBY SIGNAL DETECTED</span>
+            </div>
+          </motion.div>
+        )}
+
+        {errorDetails && !isReconnecting && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -678,7 +783,7 @@ export default function VideoPlayer({
         )}
 
         {/* Big Fluid Play/Pause Center Indicator */}
-        {!isPlaying && !isBuffering && !errorDetails && (
+        {!isPlaying && !isBuffering && !errorDetails && !isReconnecting && (
           <motion.div 
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}

@@ -8,9 +8,10 @@ import {
   CheckCircle2, Server, Smartphone, Database, Lock, Cloud, 
   Bell, Sparkles, Terminal, FileCode, Check, ArrowRight,
   Flame, Key, HardDrive, Cpu, AlertCircle, Tv, LogOut, User,
-  Loader2, Search, Facebook, Twitter, Youtube
+  Loader2, Search, Facebook, Twitter, Youtube, Briefcase, Building2
 } from 'lucide-react';
 import { auth, db, firebaseConfig } from '@/firebase/config';
+import { handleFirestoreError, OperationType } from '@/lib/firestoreErrors';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { useAuthStore } from '@/store/authStore';
@@ -21,6 +22,7 @@ import type { UserProfile } from '@/types';
 import { motion, AnimatePresence } from 'motion/react';
 import StreamingPortal from './components/StreamingPortal';
 import AuthPortal from './components/AuthPortal';
+import BizLinkUganda from './components/BizLinkUganda';
 import logoImg from '@/assets/images/donalisa_logo_1782938170546.jpg';
 
 export default function App() {
@@ -34,6 +36,8 @@ export default function App() {
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
 
   const [activePortalTab, setActivePortalTab] = useState<'catalog' | 'profile' | 'admin_dashboard'>('catalog');
+  const [isBizLinkOpen, setIsBizLinkOpen] = useState(false);
+  const [isBizLinkMinimized, setIsBizLinkMinimized] = useState(false);
 
   // Social Links state
   const [socialLinks, setSocialLinks] = useState({
@@ -80,6 +84,9 @@ export default function App() {
       }
     }, (err) => {
       console.warn("Failed to subscribe to social settings:", err);
+      if (err.code === 'permission-denied' || err.message?.includes('permission')) {
+        handleFirestoreError(err, OperationType.GET, 'settings/global');
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -231,6 +238,23 @@ export default function App() {
 
             {user ? (
               <div className="flex items-center gap-4">
+                {/* BizLink Uganda Launch Button */}
+                <button
+                  onClick={() => {
+                    setIsBizLinkOpen(true);
+                    setIsBizLinkMinimized(false);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all border cursor-pointer h-9 ${
+                    isBizLinkOpen && !isBizLinkMinimized
+                      ? 'bg-cyan-500 text-black border-transparent shadow-lg shadow-cyan-500/30'
+                      : 'bg-[#111] hover:bg-[#1f1f1f] border-[#222] text-[#00E5FF] hover:text-white'
+                  }`}
+                  id="header-bizlink-btn"
+                >
+                  <Briefcase className="w-3.5 h-3.5 text-yellow-400" />
+                  <span>BizLink Uganda</span>
+                </button>
+
                 {/* Movie Management Shortcut for Admins */}
                 {user.role === 'admin' && (
                   <button
@@ -367,7 +391,34 @@ export default function App() {
         {/* Primary Page Content */}
         {user ? (
           <main className="max-w-7xl mx-auto px-6 pt-8 space-y-6">
-            <StreamingPortal activeTab={activePortalTab} setActiveTab={setActivePortalTab} />
+            <StreamingPortal 
+              activeTab={activePortalTab} 
+              setActiveTab={setActivePortalTab} 
+              onOpenBizLink={() => {
+                setIsBizLinkOpen(true);
+                setIsBizLinkMinimized(false);
+              }}
+            />
+
+            {/* BizLink Uganda In-App Floating Window */}
+            {isBizLinkOpen && (
+              <BizLinkUganda 
+                onClose={() => setIsBizLinkOpen(false)}
+                onMinimize={() => setIsBizLinkMinimized(true)}
+                isMinimized={isBizLinkMinimized}
+              />
+            )}
+
+            {/* PERSISTENT FLOATING TASKBAR ICON FOR MINIMIZED BIZLINK WINDOW */}
+            {isBizLinkOpen && isBizLinkMinimized && (
+              <button
+                onClick={() => setIsBizLinkMinimized(false)}
+                className="fixed bottom-24 right-6 z-50 flex items-center gap-2 bg-[#0c0c0f]/95 hover:bg-cyan-950/80 backdrop-blur-md border border-cyan-500/40 rounded-full shadow-2xl p-2.5 px-4 animate-in fade-in slide-in-from-bottom-5 duration-300 text-cyan-400 font-mono text-[10px] font-black cursor-pointer"
+              >
+                <Building2 className="w-4 h-4 text-cyan-400 animate-bounce" />
+                <span>RESTORE BIZLINK UGANDA</span>
+              </button>
+            )}
           </main>
         ) : (
           <main className="flex-1 flex flex-col items-center justify-center px-6 py-20 min-h-[80vh] relative bg-cover bg-center" style={{ backgroundImage: 'linear-gradient(to top, #050505, rgba(5,5,5,0.85)), url(https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=1200&q=80)' }}>
