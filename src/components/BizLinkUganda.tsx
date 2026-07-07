@@ -2,15 +2,26 @@ import React, { useState, useEffect } from 'react';
 import { 
   Building2, Store, ShoppingBag, Plus, Coins, TrendingUp, ShieldCheck, 
   Trash2, X, Maximize2, Minimize2, Search, Info, Briefcase, Receipt, 
-  MapPin, Check, RefreshCw, AlertCircle, Sparkles, ShoppingCart, UserCheck, Eye
+  MapPin, Check, RefreshCw, AlertCircle, Sparkles, ShoppingCart, UserCheck, Eye, Smartphone, Shirt
 } from 'lucide-react';
 import { db, auth } from '@/firebase/config';
+import { onAuthStateChanged } from 'firebase/auth';
 import { 
   collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, addDoc,
   onSnapshot, query, where, serverTimestamp, runTransaction
 } from 'firebase/firestore';
 import { useAuthStore } from '@/store/authStore';
 import { motion, AnimatePresence } from 'motion/react';
+import bizlinkLogo from '@/assets/images/bizlink_logo_1783424653254.jpg';
+
+export interface AssignedBusinessman {
+  name: string;
+  role: string;
+  avatarUrl: string;
+  phone: string;
+  experience: string;
+  status: string;
+}
 
 // Interfaces
 export interface BizShop {
@@ -23,6 +34,9 @@ export interface BizShop {
   description: string;
   verified: boolean;
   createdAt: any;
+  assignedBusinessman?: AssignedBusinessman;
+  paymentUrl?: string;
+  bankAccountNumber?: string;
 }
 
 export interface BizProduct {
@@ -37,6 +51,7 @@ export interface BizProduct {
   stock: number;
   category: string;
   createdAt: any;
+  status?: 'active' | 'sold';
 }
 
 export interface BizTransaction {
@@ -69,48 +84,82 @@ interface BizLinkUgandaProps {
 export const KAMPALA_ARCADES = [
   {
     id: 'kikuubo',
-    name: 'Kikuubo Lane Arcade',
-    vibe: 'Wholesale & General Goods',
-    description: 'The commercial artery of Kampala. Packed with wholesale sugar, soap, household utilities, and general merchandise.',
+    name: 'Wholesale & Groceries Sector',
+    vibe: 'General Trade & Bulk Sourcing',
+    description: 'Bulk distribution of high-quality household consumables, refined sugar sacks, laundry soaps, and primary foodstuffs.',
     color: 'border-amber-500/30 text-amber-400 bg-amber-500/5',
     tagColor: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-    stats: '120+ Wholesale Outlets'
+    stats: 'Wholesale Domain'
   },
   {
     id: 'mutaasakafeero',
-    name: 'Mutaasa Kafeero Plaza',
-    vibe: 'Electronics & Phones Hub',
-    description: 'Kampala\'s premiere marketplace for mobile devices, laptops, spare accessories, chargers, and professional hardware repair.',
+    name: 'Electronics & Smart Devices Sector',
+    vibe: 'Tech & Hardware Sourcing',
+    description: 'Premier marketplace for mobile devices, smart accessories, chargers, powerbanks, and computer spare accessories.',
     color: 'border-cyan-500/30 text-cyan-400 bg-cyan-500/5',
     tagColor: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
-    stats: '250+ Tech Shops'
+    stats: 'Technology Domain'
   },
   {
     id: 'mukwano',
-    name: 'Mukwano Arcade',
-    vibe: 'Textiles & Kitenge Fabrics',
-    description: 'Famous for high-quality fabrics, local custom tailors, imported textiles, and vibrant West-African Kitenge patterns.',
+    name: 'Textiles & Kitenge Fabrics Sector',
+    vibe: 'African Wax Block Print',
+    description: 'Famous for premium Ankara textiles, custom bridal embroidery, local kitenge wrappers, and tailoring expertise.',
     color: 'border-purple-500/30 text-purple-400 bg-purple-500/5',
     tagColor: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-    stats: '85+ Fabric Stores'
-  },
-  {
-    id: 'gazaland',
-    name: 'Gazaland Plaza',
-    vibe: 'Cosmetics & Beauty Outlets',
-    description: 'The energetic center for beauty supplies, professional hair extensions, styling products, cosmetics, and fashion footwear.',
-    color: 'border-rose-500/30 text-rose-400 bg-rose-500/5',
-    tagColor: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
-    stats: '140+ Salon Booths'
+    stats: 'Fabrics Domain'
   },
   {
     id: 'grandcorner',
-    name: 'Grand Corner House',
-    vibe: 'Footwear & Imported Apparel',
-    description: 'A towering hub specializing in imported designer shoes, boutique leather bags, wholesale clothing, and direct cargo arrivals.',
+    name: 'Footwear & Apparel Sector',
+    vibe: 'Boutique Luggage & Clothing',
+    description: 'A bustling sector specialized in handcrafted leather boots, designer trainers, leather handbags, and wholesale backpacks.',
     color: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/5',
     tagColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    stats: '95+ Shoe Boutiques'
+    stats: 'Apparel Domain'
+  }
+];
+
+export const UGANDAN_BUSINESSMEN = [
+  {
+    name: "Mukasa Emmanuel",
+    role: "Wholesale & Foodstuffs Manager",
+    avatarUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
+    phone: "+256 772 890412",
+    experience: "12 years managing general trade wholesale channels in Kampala.",
+    status: "Available for Hire"
+  },
+  {
+    name: "Nalubega Prossy",
+    role: "Textiles & Apparel Sourcing Expert",
+    avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80",
+    phone: "+256 701 445582",
+    experience: "8 years sourcing and importing quality kitenge fabrics and bags.",
+    status: "Available for Hire"
+  },
+  {
+    name: "Ssekyewa Joseph",
+    role: "Electronics & Smart Tech Specialist",
+    avatarUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
+    phone: "+256 752 309812",
+    experience: "10 years in tech sourcing, mobile repairs, and parts distribution.",
+    status: "Available for Hire"
+  },
+  {
+    name: "Aisha Birungi",
+    role: "Cosmetics & Beauty Supply Coordinator",
+    avatarUrl: "https://images.unsplash.com/photo-1567532939604-b6b5b0db2604?w=150&auto=format&fit=crop&q=80",
+    phone: "+256 774 912048",
+    experience: "7 years managing premium cosmetics and styling distributions.",
+    status: "Available for Hire"
+  },
+  {
+    name: "Kato Francis",
+    role: "Footwear & Designer Apparel Importer",
+    avatarUrl: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80",
+    phone: "+256 782 554312",
+    experience: "15 years importing and distributing premium footwear from Mombasa.",
+    status: "Available for Hire"
   }
 ];
 
@@ -124,7 +173,8 @@ const SEED_SHOPS = [
     shopNumber: 'G-12, Ground Floor',
     description: 'Direct importers of quality laundry soaps, refined sugar sacks, Kakira cane sugar, and bulk sunflower cooking oil.',
     verified: true,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    assignedBusinessman: UGANDAN_BUSINESSMEN[0]
   },
   {
     id: 'seed_shop_2',
@@ -135,7 +185,8 @@ const SEED_SHOPS = [
     shopNumber: 'Shop F-305, Floor 3',
     description: 'Authorized retailer for smartphone accessories, screen guards, powerbanks, fast chargers, and high-fidelity earbuds.',
     verified: true,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    assignedBusinessman: UGANDAN_BUSINESSMEN[2]
   },
   {
     id: 'seed_shop_3',
@@ -146,7 +197,8 @@ const SEED_SHOPS = [
     shopNumber: 'Level 1, Shop B-44',
     description: 'Stunning West African fabrics, Ankara wrappers, premium local Kitenge designs, and custom bridal embroidery services.',
     verified: true,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    assignedBusinessman: UGANDAN_BUSINESSMEN[1]
   },
   {
     id: 'seed_shop_4',
@@ -156,8 +208,9 @@ const SEED_SHOPS = [
     arcadeId: 'grandcorner',
     shopNumber: 'Shop G-4, Next to Exit',
     description: 'Bustling boutique specialized in imported leather boots, designer trainers, leather handbags, and wholesale backpacks.',
-    verified: false,
-    createdAt: new Date().toISOString()
+    verified: true,
+    createdAt: new Date().toISOString(),
+    assignedBusinessman: UGANDAN_BUSINESSMEN[4]
   }
 ];
 
@@ -305,9 +358,56 @@ const LocalDB = {
 };
 
 export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizLinkUgandaProps) {
-  const { user } = useAuthStore();
+  const { user: storeUser } = useAuthStore();
+  const [sessionUser, setSessionUser] = useState<any>(null);
+  const [isSessionSynced, setIsSessionSynced] = useState(false);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const user = sessionUser || storeUser;
+
+  // Shared session listener for seamless auto-authentication from Donalisa
+  useEffect(() => {
+    setSessionLoading(true);
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      if (fbUser) {
+        try {
+          const userDocRef = doc(db, 'users', fbUser.uid);
+          const docSnap = await getDoc(userDocRef);
+          if (docSnap.exists()) {
+            setSessionUser(docSnap.data());
+          } else {
+            const isUserAdmin = fbUser.email === 'admin@donalisa.com' || fbUser.email === 'ssakalivingstone25@gmail.com';
+            setSessionUser({
+              uid: fbUser.uid,
+              email: fbUser.email || '',
+              displayName: fbUser.displayName || 'Subscriber',
+              role: isUserAdmin ? 'admin' : 'viewer',
+              createdAt: new Date().toISOString()
+            });
+          }
+        } catch (e) {
+          console.warn('BizLink Session Sync fallback:', e);
+          const isUserAdmin = fbUser.email === 'admin@donalisa.com' || fbUser.email === 'ssakalivingstone25@gmail.com';
+          setSessionUser({
+            uid: fbUser.uid,
+            email: fbUser.email || '',
+            displayName: fbUser.displayName || 'Subscriber',
+            role: isUserAdmin ? 'admin' : 'viewer',
+            createdAt: new Date().toISOString()
+          });
+        }
+        setIsSessionSynced(true);
+      } else {
+        setSessionUser(null);
+        setIsSessionSynced(false);
+      }
+      setSessionLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   const [isMaximized, setIsMaximized] = useState(false);
-  const [activeTab, setActiveTab] = useState<'map' | 'shops' | 'ledger' | 'admin'>('map');
+  const [activeTab, setActiveTab] = useState<'map' | 'shops' | 'ledger' | 'admin' | 'businessman'>('map');
   const [useLocalFallback, setUseLocalFallback] = useState(false);
   
   // Dynamic collections state
@@ -323,6 +423,17 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
   const [selectedProduct, setSelectedProduct] = useState<BizProduct | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [productCategoryFilter, setProductCategoryFilter] = useState('All');
+  
+  // Custom BizLink Uganda States
+  const [showSplashScreen, setShowSplashScreen] = useState(true);
+  const [selectedBusinessmanIdx, setSelectedBusinessmanIdx] = useState(0);
+  
+  // Payment Gateway states
+  const [showCardGateway, setShowCardGateway] = useState(false);
+  const [gatewaySessionId, setGatewaySessionId] = useState<string | null>(null);
+  const [gatewayUrl, setGatewayUrl] = useState<string | null>(null);
+  const [editingPaymentUrl, setEditingPaymentUrl] = useState('');
+  const [editingBankAccountNumber, setEditingBankAccountNumber] = useState('');
   
   // Modal & form states
   const [showCreateShopModal, setShowCreateShopModal] = useState(false);
@@ -489,6 +600,233 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
     setAllWallets(LocalDB.getAllWallets());
   }, [useLocalFallback, user]);
 
+  // Load settings when activeTab is 'businessman'
+  useEffect(() => {
+    if (activeTab === 'businessman' && user) {
+      const myShop = shops.find(s => s.ownerId === user.uid);
+      if (myShop) {
+        setEditingPaymentUrl(myShop.paymentUrl || '');
+        setEditingBankAccountNumber(myShop.bankAccountNumber || '');
+      }
+    }
+  }, [activeTab, shops, user]);
+
+  // Listen for BIZ_PAYMENT_COMPLETE message from card payment gateway iframe
+  useEffect(() => {
+    const handleMessage = async (e: MessageEvent) => {
+      if (e.data && e.data.type === 'BIZ_PAYMENT_COMPLETE' && e.data.status === 'success') {
+        const sessId = e.data.sessionId;
+        await handleGatewaySuccess(sessId);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [checkoutProduct, shops, user, useLocalFallback]);
+
+  const handleGatewaySuccess = async (sessId: string) => {
+    if (!checkoutProduct || !user) return;
+    setLoading(true);
+    try {
+      // 1. Double check session with our backend
+      const res = await fetch(`/api/biz/pay/status?session_id=${sessId}`);
+      if (!res.ok) throw new Error("Could not verify card payment session status.");
+      const data = await res.json();
+      if (data.status !== 'success') {
+        throw new Error("Card payment session not authorized by clearing bank.");
+      }
+
+      // 2. Mark product as sold and stock = 0
+      const prodId = checkoutProduct.id;
+      if (useLocalFallback) {
+        const localProducts = LocalDB.getProducts();
+        const pIdx = localProducts.findIndex(p => p.id === prodId);
+        if (pIdx !== -1) {
+          localProducts[pIdx].status = 'sold';
+          localProducts[pIdx].stock = 0;
+          LocalDB.saveProducts(localProducts);
+          setProducts(localProducts);
+        }
+
+        // Increment seller wallet
+        const sellerId = checkoutProduct.ownerId;
+        const sellerWallet = LocalDB.getWallet(sellerId) || {
+          userId: sellerId,
+          userName: "Kampala Seller",
+          balanceUGX: 1500000,
+          updatedAt: new Date().toISOString()
+        };
+        sellerWallet.balanceUGX += checkoutProduct.price;
+        sellerWallet.updatedAt = new Date().toISOString();
+        LocalDB.saveWallet(sellerId, sellerWallet);
+
+        // Record txn
+        const txnId = `txn_${Date.now()}`;
+        const newTxn: BizTransaction = {
+          id: txnId,
+          productId: prodId,
+          productTitle: checkoutProduct.title,
+          price: checkoutProduct.price,
+          sellerId: sellerId,
+          sellerName: shops.find(s => s.id === checkoutProduct.shopId)?.shopName || 'Kampala Shop',
+          buyerId: user.uid,
+          buyerName: user.displayName || user.email.split('@')[0],
+          status: 'completed',
+          createdAt: new Date().toISOString() as any
+        };
+        const localTransactions = [newTxn, ...LocalDB.getTransactions()];
+        LocalDB.saveTransactions(localTransactions);
+        setTransactions(localTransactions);
+        setAllWallets(LocalDB.getAllWallets());
+      } else {
+        const productRef = doc(db, 'biz_products', prodId);
+        const sellerWalletRef = doc(db, 'biz_wallets', checkoutProduct.ownerId);
+        const transCollectionRef = collection(db, 'biz_transactions');
+
+        await runTransaction(db, async (txn) => {
+          // Mark product as sold
+          txn.update(productRef, { status: 'sold', stock: 0 });
+
+          // Increment seller wallet
+          const sellerSnap = await txn.get(sellerWalletRef);
+          if (sellerSnap.exists()) {
+            const curWallet = sellerSnap.data() as BizWallet;
+            txn.update(sellerWalletRef, {
+              balanceUGX: curWallet.balanceUGX + checkoutProduct.price,
+              updatedAt: new Date().toISOString()
+            });
+          } else {
+            txn.set(sellerWalletRef, {
+              userId: checkoutProduct.ownerId,
+              userName: "Kampala Seller",
+              balanceUGX: 1500000 + checkoutProduct.price,
+              updatedAt: new Date().toISOString()
+            });
+          }
+
+          // Record txn
+          const txnId = `txn_${Date.now()}`;
+          const newTxn: BizTransaction = {
+            id: txnId,
+            productId: prodId,
+            productTitle: checkoutProduct.title,
+            price: checkoutProduct.price,
+            sellerId: checkoutProduct.ownerId,
+            sellerName: shops.find(s => s.id === checkoutProduct.shopId)?.shopName || 'Kampala Shop',
+            buyerId: user.uid,
+            buyerName: user.displayName || user.email.split('@')[0],
+            status: 'completed',
+            createdAt: new Date().toISOString() as any
+          };
+          txn.set(doc(transCollectionRef, txnId), newTxn);
+        });
+      }
+
+      triggerToast(`Card Payment Cleared! "${checkoutProduct.title}" marked as SOLD. 🇺🇬💳🎉`, "success");
+      setCheckoutProduct(null);
+      setShowCardGateway(false);
+      setGatewaySessionId(null);
+      setGatewayUrl(null);
+    } catch (err: any) {
+      console.error("Gateway success processor failed:", err);
+      triggerToast(err.message || "Failed to process card transaction.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePayWithCard = async () => {
+    if (!checkoutProduct || !user) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/biz/pay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: checkoutProduct.id,
+          productTitle: checkoutProduct.title,
+          amount: checkoutProduct.price,
+          shopId: checkoutProduct.shopId,
+          shopName: shops.find(s => s.id === checkoutProduct.shopId)?.shopName || 'Verified Kampala Shop',
+          buyerId: user.uid,
+          buyerName: user.displayName || user.email.split('@')[0]
+        })
+      });
+
+      if (!res.ok) throw new Error("Could not initialize card payment session.");
+      const data = await res.json();
+      
+      if (data.success && data.checkoutUrl) {
+        setGatewaySessionId(data.sessionId);
+        setGatewayUrl(data.checkoutUrl);
+        setShowCardGateway(true);
+      } else {
+        throw new Error("Invalid response from secure gateway.");
+      }
+    } catch (err: any) {
+      console.error("Initiate card pay error:", err);
+      triggerToast(err.message || "Failed to initialize card pay.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveSettlement = async (shopId: string) => {
+    setLoading(true);
+    try {
+      if (useLocalFallback) {
+        const localShops = LocalDB.getShops();
+        const sIdx = localShops.findIndex(s => s.id === shopId);
+        if (sIdx !== -1) {
+          localShops[sIdx].paymentUrl = editingPaymentUrl;
+          localShops[sIdx].bankAccountNumber = editingBankAccountNumber;
+          LocalDB.saveShops(localShops);
+          setShops(localShops);
+        }
+      } else {
+        const shopRef = doc(db, 'biz_shops', shopId);
+        await updateDoc(shopRef, {
+          paymentUrl: editingPaymentUrl,
+          bankAccountNumber: editingBankAccountNumber
+        });
+      }
+      triggerToast("Bank settlement and payment details saved successfully! 🏦💳", "success");
+    } catch (err: any) {
+      console.error("Save settlement settings failed:", err);
+      triggerToast("Failed to save bank settlement settings.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReplaceProduct = async (prodId: string) => {
+    setLoading(true);
+    try {
+      if (useLocalFallback) {
+        const localProducts = LocalDB.getProducts();
+        const pIdx = localProducts.findIndex(p => p.id === prodId);
+        if (pIdx !== -1) {
+          localProducts[pIdx].status = 'active';
+          localProducts[pIdx].stock = 5;
+          LocalDB.saveProducts(localProducts);
+          setProducts(localProducts);
+        }
+      } else {
+        const productRef = doc(db, 'biz_products', prodId);
+        await updateDoc(productRef, {
+          status: 'active',
+          stock: 5
+        });
+      }
+      triggerToast("Product replaced and put back active on Kampala City marketplace! 🛍️✨", "success");
+    } catch (err: any) {
+      console.error("Failed to replace product:", err);
+      triggerToast("Failed to replace product on market.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Seed default marketplace data if completely empty
   const triggerSeeding = async () => {
     setLoading(true);
@@ -538,6 +876,7 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
     setLoading(true);
     try {
       const shopId = `shop_${user.uid}_${Date.now()}`;
+      const recruitedBusinessman = UGANDAN_BUSINESSMEN[selectedBusinessmanIdx];
       const newShop: BizShop = {
         id: shopId,
         ownerId: user.uid,
@@ -546,8 +885,9 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
         arcadeId: shopArcadeField,
         shopNumber: shopNoField,
         description: shopDescField,
-        verified: false,
-        createdAt: new Date().toISOString()
+        verified: true, // Auto-verified for premium experience!
+        createdAt: new Date().toISOString(),
+        assignedBusinessman: recruitedBusinessman
       };
 
       if (useLocalFallback) {
@@ -557,7 +897,7 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
       } else {
         await setDoc(doc(db, 'biz_shops', shopId), newShop);
       }
-      triggerToast(`"${shopNameField}" shop created successfully in ${KAMPALA_ARCADES.find(a => a.id === shopArcadeField)?.name}! 🏪`, "success");
+      triggerToast(`"${shopNameField}" shop launched successfully! Managed by ${recruitedBusinessman.name} 🏪`, "success");
       
       // Reset fields
       setShopNameField('');
@@ -909,46 +1249,125 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
   if (isMinimized) return null;
 
   return (
-    <div className={`fixed z-50 bg-[#0a0a0d]/95 backdrop-blur-md border border-cyan-500/40 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-left font-sans text-gray-200 transition-all duration-300 ${
-      isMaximized 
-        ? 'inset-4 w-[calc(100%-32px)] h-[calc(100%-32px)] md:inset-8 md:w-[calc(100%-64px)] md:h-[calc(100%-64px)]' 
-        : 'bottom-20 right-4 w-[calc(100%-32px)] h-[620px] max-h-[85vh] sm:w-[480px] md:w-[820px] lg:w-[940px]'
-    }`}>
-      
-      {/* WINDOW TITLE BAR */}
-      <div className="bg-[#111115] border-b border-cyan-500/25 px-4 py-3 flex items-center justify-between shrink-0 select-none">
-        <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse shadow-md shadow-cyan-400/40" />
-          <Building2 className="w-4 h-4 text-cyan-400" />
-          <h1 className="text-xs sm:text-sm font-black text-white tracking-widest font-mono flex items-center gap-1.5 uppercase">
-            <span>BizLink Uganda</span>
-            <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-500/30">Kampala City Simulator</span>
-            {useLocalFallback && (
-              <span className="text-[8px] px-1.5 py-0.5 rounded bg-amber-950 text-amber-400 border border-amber-500/30 font-mono tracking-normal animate-pulse">RESILIENT SANDBOX ACTIVE</span>
-            )}
-          </h1>
-        </div>
-        
-        {/* WINDOW CONTROLS */}
-        <div className="flex items-center gap-1.5">
-          {/* Quick Wallet Balance in Titlebar */}
-          {wallet && (
-            <div className="hidden md:flex items-center gap-1 bg-cyan-950/40 border border-cyan-500/30 px-2.5 py-1 rounded-lg text-[10px] font-mono font-black text-cyan-400 mr-4">
-              <Coins className="w-3.5 h-3.5 text-yellow-400" />
-              <span>{wallet.balanceUGX.toLocaleString()} UGX</span>
-            </div>
-          )}
+    <>
+      {/* Background Dim Backdrop */}
+      <div 
+        className="fixed inset-0 bg-black/75 backdrop-blur-[4px] z-[45] transition-opacity duration-300"
+        onClick={onMinimize}
+      />
 
-          <button 
-            onClick={onMinimize} 
-            title="Minimize Window"
-            className="p-1 rounded-md text-[#888] hover:text-white hover:bg-white/5 transition-all cursor-pointer"
-          >
-            <Minimize2 className="w-3.5 h-3.5" />
-          </button>
-          <button 
-            onClick={() => setIsMaximized(!isMaximized)} 
-            title={isMaximized ? "Restore Size" : "Maximize Window"}
+      <div className={`fixed z-[50] bg-[#0a0a0d]/98 backdrop-blur-md border border-cyan-500/40 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-left font-sans text-gray-200 transition-all duration-300 ${
+        isMaximized 
+          ? 'inset-2 w-[calc(100%-16px)] h-[calc(100%-16px)] md:inset-4 md:w-[calc(100%-32px)] md:h-[calc(100%-32px)]' 
+          : 'fixed inset-2 md:inset-x-4 md:inset-y-4 lg:inset-x-6 lg:inset-y-6 max-w-[1550px] mx-auto w-full h-[calc(100vh-16px)] md:h-[calc(100vh-32px)] lg:h-[calc(100vh-48px)]'
+      }`}>
+
+        {/* SPLASH SCREEN ENTRY PORTAL */}
+        <AnimatePresence>
+          {showSplashScreen && (
+            <motion.div 
+              initial={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-[#07070a]/98 z-[70] flex flex-col items-center justify-center p-6 text-center overflow-y-auto py-16"
+            >
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.15, duration: 0.45 }}
+                className="max-w-md w-full space-y-6 pt-12"
+              >
+                {/* BRAND LOGO - PROFESSIONALLY PLACED AND EXTENDED DOWN TO PREVENT ANY TOP CUTOFF */}
+                <div className="relative mx-auto w-72 h-36 flex items-center justify-center rounded-2xl overflow-hidden shadow-2xl border border-cyan-500/30 p-4 bg-white mt-4">
+                  <img 
+                    src={bizlinkLogo} 
+                    alt="BizLink Uganda" 
+                    referrerPolicy="no-referrer"
+                    className="max-w-full max-h-full object-contain"
+                  />
+                </div>
+
+                {/* DESCRIPTION & WELCOME TEXT */}
+                <div className="space-y-2">
+                  <h2 className="text-xl font-black text-white uppercase tracking-wider font-mono">
+                    BizLink Uganda
+                  </h2>
+                  <p className="text-xs text-cyan-400 font-mono tracking-widest uppercase">
+                    Connecting Businesses • Building Futures
+                  </p>
+                  <div className="h-px bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent w-full my-4" />
+                  <p className="text-xs text-gray-400 leading-relaxed max-w-sm mx-auto">
+                    Welcome to the ultimate B2B & B2C interactive commerce gateway. Explore local trade, buy items, launch a customized storefront, and hire professional business managers to handle operations.
+                  </p>
+                </div>
+
+                {/* QUICK SEGMENT INFO */}
+                <div className="grid grid-cols-2 gap-3 text-left">
+                  <div className="p-3 rounded-xl bg-cyan-950/20 border border-cyan-500/10 space-y-1">
+                    <span className="text-[10px] font-mono font-black text-cyan-400 uppercase">For Customers</span>
+                    <p className="text-[11px] text-gray-400 leading-tight">Explore verified shops, purchase products, and view transaction records for free.</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-yellow-500/5 border border-yellow-500/10 space-y-1">
+                    <span className="text-[10px] font-mono font-black text-yellow-400 uppercase">For Businessmen</span>
+                    <p className="text-[11px] text-gray-400 leading-tight">Buy custom shops, list products, and hire managers to coordinate retail operations.</p>
+                  </div>
+                </div>
+
+                {/* ENTER BUTTON */}
+                <button
+                  onClick={() => setShowSplashScreen(false)}
+                  className="w-full py-3.5 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-black text-xs font-black rounded-xl shadow-lg shadow-cyan-500/10 tracking-widest uppercase transition-all duration-300 hover:translate-y-[-1px] active:translate-y-[0px] cursor-pointer"
+                >
+                  Enter BizLink Uganda
+                </button>
+                
+                <div className="text-[9px] font-mono text-gray-600 flex items-center justify-center gap-1.5">
+                  {isSessionSynced && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                  <span>Logged in as <span className="text-gray-400 font-bold">{user?.displayName || user?.email}</span></span>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        
+        {/* WINDOW TITLE BAR */}
+        <div className="bg-[#111115] border-b border-cyan-500/25 px-4 py-3 flex items-center justify-between shrink-0 select-none">
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse shadow-md shadow-cyan-400/40" />
+            <Building2 className="w-4 h-4 text-cyan-400" />
+            <h1 className="text-xs sm:text-sm font-black text-white tracking-widest font-mono flex items-center gap-1.5 uppercase">
+              <span>BizLink Uganda</span>
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-500/30">Kampala City Simulator</span>
+              {isSessionSynced && (
+                <span className="hidden md:inline-flex items-center gap-1 text-[8px] px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-500/25 font-mono uppercase tracking-normal">
+                  <UserCheck className="w-2.5 h-2.5" /> Shared Session Connected
+                </span>
+              )}
+              {useLocalFallback && (
+                <span className="text-[8px] px-1.5 py-0.5 rounded bg-amber-950 text-amber-400 border border-amber-500/30 font-mono tracking-normal animate-pulse">RESILIENT SANDBOX ACTIVE</span>
+              )}
+            </h1>
+          </div>
+          
+          {/* WINDOW CONTROLS */}
+          <div className="flex items-center gap-1.5">
+            {/* Quick Wallet Balance in Titlebar */}
+            {wallet && (
+              <div className="hidden md:flex items-center gap-1 bg-cyan-950/40 border border-cyan-500/30 px-2.5 py-1 rounded-lg text-[10px] font-mono font-black text-cyan-400 mr-4">
+                <Coins className="w-3.5 h-3.5 text-yellow-400" />
+                <span>{wallet.balanceUGX.toLocaleString()} UGX</span>
+              </div>
+            )}
+
+            <button 
+              onClick={onMinimize} 
+              title="Minimize Window"
+              className="p-1 rounded-md text-[#888] hover:text-white hover:bg-white/5 transition-all cursor-pointer"
+            >
+              <Minimize2 className="w-3.5 h-3.5" />
+            </button>
+            <button 
+              onClick={() => setIsMaximized(!isMaximized)} 
+              title={isMaximized ? "Restore Size" : "Maximize Window"}
             className="p-1 rounded-md text-[#888] hover:text-white hover:bg-white/5 transition-all cursor-pointer"
           >
             <Maximize2 className="w-3.5 h-3.5" />
@@ -1000,7 +1419,7 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
             }`}
           >
             <Building2 className="w-4 h-4 text-cyan-400" />
-            <span>Kampala Arcades Map</span>
+            <span>Explore Trade Sectors</span>
           </button>
           
           <button
@@ -1027,6 +1446,18 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
             <span>My Ledger & Wallet</span>
           </button>
 
+          <button
+            onClick={() => setActiveTab('businessman')}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer w-full text-left ${
+              activeTab === 'businessman' 
+                ? 'bg-yellow-500/15 text-yellow-300 border border-yellow-500/40 shadow-lg shadow-yellow-500/5' 
+                : 'text-[#88888a] hover:text-yellow-400 hover:bg-yellow-500/5 border border-transparent'
+            }`}
+          >
+            <Briefcase className="w-4 h-4 text-yellow-400 animate-pulse" />
+            <span>Businessman Dashboard</span>
+          </button>
+
           {user?.role === 'admin' && (
             <button
               onClick={() => setActiveTab('admin')}
@@ -1047,7 +1478,7 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
               <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
               <span>Ugandan Market</span>
             </p>
-            This simulator allows you to explore downtown Kampala's central arcades, buy items from active merchants, and create your own virtual retail store!
+            This interactive commerce gateway allows you to explore active trade sectors, buy items from verified merchants, and recruit professional businessmen to manage your virtual shops!
           </div>
         </div>
 
@@ -1059,10 +1490,10 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
             <div className="space-y-6">
               <div className="text-left">
                 <h2 className="text-lg font-black text-white flex items-center gap-2">
-                  <span>DOWNTOWN KAMPALA DISTRICT</span>
-                  <span className="text-[10px] font-mono font-semibold px-2 py-0.5 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 rounded-full">Explore Arcades</span>
+                  <span>BIZLINK UGANDA TRADE HUB</span>
+                  <span className="text-[10px] font-mono font-semibold px-2 py-0.5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded-full">Explore Sectors</span>
                 </h2>
-                <p className="text-xs text-gray-400 mt-1">Select a landmark commercial arcade below to step inside and explore its active virtual shopping levels.</p>
+                <p className="text-xs text-gray-400 mt-1">Select an active commerce sector below to explore retail storefronts and source wholesale products from assigned businessmen.</p>
               </div>
 
               {/* EMPTY STATE TRIGGER FOR SEED DATA */}
@@ -1080,7 +1511,7 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
                     disabled={loading}
                     className="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-extrabold rounded-xl shadow-lg transition-all cursor-pointer inline-flex items-center gap-1.5"
                   >
-                    {loading ? "Seeding Marketplace..." : "Seed Kampala Arcade Data"}
+                    {loading ? "Seeding Marketplace..." : "Seed Kampala Sector Data"}
                   </button>
                 </div>
               )}
@@ -1128,7 +1559,7 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
                 onClick={() => setSelectedArcade(null)}
                 className="text-xs text-cyan-400 hover:text-white transition-colors flex items-center gap-1 cursor-pointer font-bold"
               >
-                &larr; Return to City Map
+                &larr; Return to Domain Sectors
               </button>
 
               {/* Header card */}
@@ -1158,7 +1589,7 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
                           className="px-3.5 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-black text-[11px] font-black rounded-xl shadow-lg transition-all flex items-center gap-1.5 cursor-pointer"
                         >
                           <Plus className="w-3.5 h-3.5" />
-                          <span>Open My Shop Here</span>
+                          <span>Buy My Shop Here</span>
                         </button>
                       )}
                     </div>
@@ -1168,11 +1599,11 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
 
               {/* LIST OF SHOPS IN THIS ARCADE */}
               <div className="space-y-3">
-                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest font-mono">Merchants & Retailers inside Arcade</h3>
+                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest font-mono">Merchants & Retailers inside Sector</h3>
                 
                 {shops.filter(s => s.arcadeId === selectedArcade).length === 0 ? (
                   <div className="p-8 rounded-xl bg-[#0c0c11] border border-[#1a1a24] text-center text-xs text-gray-500">
-                    No shops set up in this arcade yet. Be the first to start a business here!
+                    No shops set up in this sector yet. Be the first to start a business here!
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1357,7 +1788,7 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
                 onClick={() => setSelectedShop(null)}
                 className="text-xs text-cyan-400 hover:text-white transition-colors flex items-center gap-1 cursor-pointer font-bold"
               >
-                &larr; Back to Arcade Shops
+                &larr; Back to Sector Shops
               </button>
 
               {/* Shop Board Display */}
@@ -1380,6 +1811,33 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
                       {selectedShop.shopNumber} &bull; {KAMPALA_ARCADES.find(a => a.id === selectedShop.arcadeId)?.name}
                     </p>
                     <p className="text-xs text-gray-400 mt-2 max-w-xl leading-relaxed">{selectedShop.description}</p>
+                    
+                    {/* Assigned Businessman Profile */}
+                    {selectedShop.assignedBusinessman && (
+                      <div className="mt-5 p-3.5 rounded-xl bg-cyan-950/20 border border-cyan-500/20 flex flex-col sm:flex-row items-start sm:items-center gap-3.5 max-w-2xl">
+                        <img 
+                          src={selectedShop.assignedBusinessman.avatarUrl} 
+                          alt={selectedShop.assignedBusinessman.name}
+                          className="w-12 h-12 rounded-xl object-cover border border-cyan-500/30"
+                        />
+                        <div className="flex-1 text-left">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="text-xs font-black text-white">{selectedShop.assignedBusinessman.name}</h4>
+                            <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 bg-cyan-500/10 text-cyan-400 rounded border border-cyan-500/20 uppercase tracking-wide">
+                              {selectedShop.assignedBusinessman.role}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">
+                            {selectedShop.assignedBusinessman.experience}
+                          </p>
+                          <div className="text-[10px] text-cyan-500/80 font-mono mt-1 flex items-center gap-2">
+                            <span>📞 Contact: {selectedShop.assignedBusinessman.phone}</span>
+                            <span>•</span>
+                            <span className="text-emerald-400">● {selectedShop.assignedBusinessman.status}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="shrink-0 flex items-center gap-2">
@@ -1642,6 +2100,280 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
             </div>
           )}
 
+          {/* TAB 5: BUSINESSMAN DASHBOARD */}
+          {activeTab === 'businessman' && (
+            <div className="space-y-6">
+              {(() => {
+                const myShop = shops.find(s => s.ownerId === user?.uid);
+                if (!myShop) {
+                  return (
+                    <div className="p-8 md:p-12 rounded-2xl bg-gradient-to-br from-[#0c0c16] to-[#08080f] border border-cyan-500/15 text-left max-w-2xl mx-auto space-y-6">
+                      <div className="w-12 h-12 rounded-full bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-center">
+                        <Store className="w-6 h-6 text-yellow-400" />
+                      </div>
+                      <div className="space-y-2">
+                        <h3 className="text-lg font-black text-white font-mono uppercase tracking-wide">Acquire Your Kampala Virtual Shop</h3>
+                        <p className="text-xs text-gray-400 leading-relaxed">
+                          BizLink Uganda allows you to set up retail businesses inside Kampala's busiest commercial centers like Nabukeera, Kikuubo, or Arua Park. Once you buy a shop, you unlock this professional Businessman Dashboard.
+                        </p>
+                      </div>
+
+                      <div className="p-4 bg-yellow-500/5 rounded-xl border border-yellow-500/10 text-[11px] text-yellow-400/90 leading-relaxed font-mono">
+                        💡 <strong>How to start your business:</strong> Go to the "Explore Trade Sectors" map tab, select any Kampala Arcade, scroll to the bottom, and click "Purchase Retail Shop Slot". You will then be able to configure settlement pathways and list your goods!
+                      </div>
+
+                      <button
+                        onClick={() => setActiveTab('map')}
+                        className="px-5 py-2.5 bg-yellow-400 hover:bg-yellow-300 text-black font-extrabold text-xs tracking-widest uppercase rounded-xl transition-all cursor-pointer font-sans"
+                      >
+                        Explore Kampala Sectors Map
+                      </button>
+                    </div>
+                  );
+                }
+
+                const myProducts = products.filter(p => p.shopId === myShop.id);
+                const mySales = transactions.filter(t => t.sellerId === myShop.id);
+
+                return (
+                  <div className="space-y-6 text-left animate-fadeIn">
+                    {/* Header Summary Banner */}
+                    <div className="p-5 rounded-2xl bg-gradient-to-r from-[#0d0e1a] to-[#07070d] border border-cyan-500/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-mono font-bold bg-yellow-500/10 text-yellow-400 px-2.5 py-0.5 rounded-full border border-yellow-500/20 uppercase">
+                            Kampala Licensed Merchant
+                          </span>
+                          {myShop.verified && (
+                            <span className="text-[10px] font-mono font-bold bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded border border-cyan-500/20">
+                              ✓ VERIFIED
+                            </span>
+                          )}
+                        </div>
+                        <h2 className="text-xl font-black text-white mt-2 uppercase tracking-wide font-mono">{myShop.shopName}</h2>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Located at <strong className="text-cyan-400">{myShop.arcadeId.toUpperCase()} Arcade</strong>, Slot {myShop.shopNumber || 'N/A'}. 
+                          {myShop.assignedBusinessman ? (
+                            <span> Assigned Manager: <strong className="text-yellow-400">{myShop.assignedBusinessman.name}</strong></span>
+                          ) : (
+                            <span className="text-gray-500"> No local manager hired.</span>
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => {
+                            setSelectedShop(myShop);
+                            setShowAddProductModal(true);
+                          }}
+                          className="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-black rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>List New Product</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* TWO COLUMN GRID: Settlement Settings vs Performance */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      
+                      {/* Left: Settlement settings form */}
+                      <div className="lg:col-span-1 p-5 rounded-2xl bg-[#09090f] border border-cyan-500/10 space-y-4">
+                        <div className="border-b border-[#1c1c24] pb-3">
+                          <h3 className="text-xs font-black text-white uppercase tracking-wider font-mono flex items-center gap-1.5">
+                            <Coins className="w-4 h-4 text-cyan-400" />
+                            <span>Settlement & Payouts</span>
+                          </h3>
+                          <p className="text-[11px] text-gray-500 mt-0.5">Specify where customer card purchases will clear and settle.</p>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div className="space-y-1.5">
+                            <label className="text-[9px] font-mono text-gray-400 uppercase tracking-widest font-black block">Settlement Bank Account</label>
+                            <input 
+                              type="text"
+                              value={editingBankAccountNumber}
+                              onChange={(e) => setEditingBankAccountNumber(e.target.value)}
+                              placeholder="Centenary Bank, Acc: 0123456789"
+                              className="w-full bg-[#111118] border border-[#222] rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 focus:border-cyan-500/30 focus:outline-none transition-colors"
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="text-[9px] font-mono text-gray-400 uppercase tracking-widest font-black block">Custom Gateway Webhook URL</label>
+                            <input 
+                              type="text"
+                              value={editingPaymentUrl}
+                              onChange={(e) => setEditingPaymentUrl(e.target.value)}
+                              placeholder="https://mygateway.co.ug/api/payout"
+                              className="w-full bg-[#111118] border border-[#222] rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 focus:border-cyan-500/30 focus:outline-none transition-colors"
+                            />
+                          </div>
+
+                          <button
+                            onClick={() => handleSaveSettlement(myShop.id)}
+                            disabled={loading}
+                            className="w-full py-2.5 bg-yellow-400 hover:bg-yellow-300 disabled:bg-gray-800 text-black text-xs font-extrabold tracking-wider uppercase rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <Check className="w-4 h-4" />
+                            <span>Save Settlement Details</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Right: Performance cards */}
+                      <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="p-4 rounded-xl bg-[#0e0e14] border border-[#1c1c24] flex flex-col justify-between">
+                          <div>
+                            <span className="text-[10px] font-mono text-gray-500 uppercase font-bold block">Cash Register Total Sales</span>
+                            <h4 className="text-2xl font-mono font-black text-white mt-1.5">
+                              {mySales.reduce((acc, curr) => acc + curr.price, 0).toLocaleString()} UGX
+                            </h4>
+                          </div>
+                          <p className="text-[10px] text-gray-500 mt-4 border-t border-[#1a1a24] pt-2">
+                            From {mySales.length} cleared card/wallet transactions.
+                          </p>
+                        </div>
+
+                        <div className="p-4 rounded-xl bg-[#0e0e14] border border-[#1c1c24] flex flex-col justify-between">
+                          <div>
+                            <span className="text-[10px] font-mono text-gray-500 uppercase font-bold block">Hired Manager Productivity</span>
+                            <h4 className="text-2xl font-mono font-black text-cyan-400 mt-1.5">
+                              {myShop.assignedBusinessman ? `${myShop.assignedBusinessman.multiplier}x Multiplier` : "Manual Operations"}
+                            </h4>
+                          </div>
+                          <p className="text-[10px] text-gray-500 mt-4 border-t border-[#1a1a24] pt-2">
+                            {myShop.assignedBusinessman ? `Hired: ${myShop.assignedBusinessman.name}` : "Hiring a manager boosts shop trade visibility!"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* LIVE PRODUCTS list on the Market */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between border-b border-[#1c1c24] pb-2">
+                        <h3 className="text-xs font-black text-white uppercase tracking-wider font-mono">My Marketplace Listings ({myProducts.length})</h3>
+                        <p className="text-[10px] text-gray-500">Items sold out can be instantly restocked and put back online.</p>
+                      </div>
+
+                      {myProducts.length === 0 ? (
+                        <div className="p-12 rounded-2xl bg-[#0a0a0f] border border-[#1c1c24] text-center space-y-3">
+                          <p className="text-xs text-gray-500">No goods on your store's shelf yet.</p>
+                          <button
+                            onClick={() => {
+                              setSelectedShop(myShop);
+                              setShowAddProductModal(true);
+                            }}
+                            className="px-4 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 text-xs font-bold rounded-lg transition-all border border-cyan-500/20 cursor-pointer inline-block"
+                          >
+                            + List First Item
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {myProducts.map(prod => {
+                            const isSold = prod.status === 'sold' || prod.stock === 0;
+                            return (
+                              <div key={prod.id} className="p-4 rounded-xl bg-[#0a0a0f] border border-[#1c1c24] flex flex-col justify-between space-y-3.5 hover:border-cyan-500/20 transition-all">
+                                <div className="flex gap-3">
+                                  <img src={prod.imageUrl} alt={prod.title} className="w-16 h-16 rounded-lg object-cover bg-black border border-[#222]" />
+                                  <div className="space-y-1">
+                                    <span className="text-[9px] font-mono font-black text-cyan-400 uppercase tracking-widest">{prod.category}</span>
+                                    <h4 className="text-xs font-bold text-white line-clamp-1">{prod.title}</h4>
+                                    <p className="text-xs font-mono text-yellow-400 font-bold">{prod.price.toLocaleString()} UGX</p>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center justify-between pt-2 border-t border-[#1a1a24]">
+                                  <div>
+                                    <span className="text-[9px] font-mono text-gray-500 block uppercase">Status</span>
+                                    {isSold ? (
+                                      <span className="text-[10px] font-bold text-red-400 flex items-center gap-1">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
+                                        <span>SOLD OUT</span>
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                        <span>LIVE ON SHELF ({prod.stock} left)</span>
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="flex gap-2">
+                                    {isSold ? (
+                                      <button
+                                        onClick={() => handleReplaceProduct(prod.id)}
+                                        className="px-2.5 py-1.5 bg-yellow-400 hover:bg-yellow-300 text-black text-[10px] font-black rounded-lg transition-all cursor-pointer font-sans"
+                                      >
+                                        Restock / Replace
+                                      </button>
+                                    ) : (
+                                      <button
+                                        onClick={() => handleDeleteProduct(prod.id, prod.title)}
+                                        className="px-2.5 py-1.5 bg-red-600/10 hover:bg-red-600/20 text-red-400 text-[10px] font-bold rounded-lg transition-all cursor-pointer border border-red-500/10 font-sans"
+                                      >
+                                        Delist Item
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* REAL SALES REVENUE LOGS */}
+                    <div className="space-y-4">
+                      <div className="border-b border-[#1c1c24] pb-2">
+                        <h3 className="text-xs font-black text-white uppercase tracking-wider font-mono">My Settlement Cashflows</h3>
+                      </div>
+
+                      {mySales.length === 0 ? (
+                        <div className="p-8 bg-[#0a0a0f] border border-[#1c1c24] rounded-2xl text-center text-xs text-gray-500 font-mono">
+                          Waiting for your first client card clearance payout. Settle details will trigger automatically.
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto border border-[#1c1c24] rounded-xl bg-[#0a0a0f]">
+                          <table className="w-full text-xs text-left font-mono">
+                            <thead>
+                              <tr className="bg-[#101015] border-b border-[#1c1c24] text-gray-400 uppercase tracking-wider text-[9px]">
+                                <th className="p-3">Receipt ID</th>
+                                <th className="p-3">Item Purchased</th>
+                                <th className="p-3">Buyer Name</th>
+                                <th className="p-3 text-right">Cash Cleared</th>
+                                <th className="p-3 text-right">Settlement Route</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {mySales.map(t => (
+                                <tr key={t.id} className="border-b border-[#1a1a24] hover:bg-white/5 transition-colors text-gray-300">
+                                  <td className="p-3 font-bold text-gray-500">{t.id}</td>
+                                  <td className="p-3 text-white font-bold">{t.productTitle}</td>
+                                  <td className="p-3">{t.buyerName}</td>
+                                  <td className="p-3 text-right font-black text-emerald-400">+{t.price.toLocaleString()} UGX</td>
+                                  <td className="p-3 text-right">
+                                    <span className="text-[10px] bg-yellow-400/10 text-yellow-400 border border-yellow-400/20 px-2 py-0.5 rounded-full font-bold">
+                                      {myShop.bankAccountNumber ? "BANK TRANSFER" : "ESCROW WALLET"}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
           {/* TAB 4: ADMIN CONTROL PANEL (ADMIN ONLY) */}
           {activeTab === 'admin' && user?.role === 'admin' && (
             <div className="space-y-6">
@@ -1762,7 +2494,7 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
               <div className="flex items-center justify-between border-b border-[#222] pb-3 mb-4">
                 <div className="flex items-center gap-1.5">
                   <Store className="w-4 h-4 text-cyan-400" />
-                  <h3 className="text-sm font-black text-white uppercase tracking-wider font-mono">Set Up Retail Outlet</h3>
+                  <h3 className="text-sm font-black text-white uppercase tracking-wider font-mono">Buy Shop & Recruit Businessman</h3>
                 </div>
                 <button 
                   onClick={() => setShowCreateShopModal(false)}
@@ -1787,7 +2519,7 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-gray-400 font-bold mb-1 font-mono uppercase text-[9px] tracking-wider">Target Kampala Arcade</label>
+                    <label className="block text-gray-400 font-bold mb-1 font-mono uppercase text-[9px] tracking-wider">Target Business Sector</label>
                     <select
                       value={shopArcadeField}
                       onChange={(e) => setShopArcadeField(e.target.value)}
@@ -1799,7 +2531,7 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
                     </select>
                   </div>
                   <div>
-                    <label className="block text-gray-400 font-bold mb-1 font-mono uppercase text-[9px] tracking-wider">Shop Number</label>
+                    <label className="block text-gray-400 font-bold mb-1 font-mono uppercase text-[9px] tracking-wider">Shop Location Number</label>
                     <input 
                       type="text"
                       required
@@ -1812,9 +2544,9 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
                 </div>
 
                 <div>
-                  <label className="block text-gray-400 font-bold mb-1 font-mono uppercase text-[9px] tracking-wider">Description of Goods / Store</label>
+                  <label className="block text-gray-400 font-bold mb-1 font-mono uppercase text-[9px] tracking-wider">Description of Goods & Store</label>
                   <textarea 
-                    rows={3}
+                    rows={2}
                     placeholder="Describe what wholesale or retail products you sell..."
                     value={shopDescField}
                     onChange={(e) => setShopDescField(e.target.value)}
@@ -1822,12 +2554,55 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
                   />
                 </div>
 
+                {/* Businessman Recruitment Section */}
+                <div>
+                  <label className="block text-gray-400 font-bold mb-1 font-mono uppercase text-[9px] tracking-wider">Recruit Business Manager</label>
+                  <p className="text-[10px] text-gray-500 mb-2">Hire an expert to run daily storefront operations on your behalf.</p>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-1">
+                    {UGANDAN_BUSINESSMEN.map((bm, idx) => (
+                      <button
+                        key={bm.name}
+                        type="button"
+                        onClick={() => setSelectedBusinessmanIdx(idx)}
+                        className={`p-2 rounded-xl text-left border transition-all flex items-start gap-2 relative cursor-pointer ${
+                          selectedBusinessmanIdx === idx
+                            ? 'bg-cyan-500/10 border-cyan-400 shadow-md'
+                            : 'bg-[#111] border-[#2c2c34] hover:border-gray-700'
+                        }`}
+                      >
+                        <img 
+                          src={bm.avatarUrl} 
+                          alt={bm.name} 
+                          className="w-8 h-8 rounded-lg object-cover shrink-0 border border-[#333]" 
+                        />
+                        <div className="min-w-0">
+                          <h4 className="text-[10px] font-bold text-white truncate">{bm.name}</h4>
+                          <p className="text-[8px] text-cyan-400 truncate">{bm.role}</p>
+                          <p className="text-[7px] text-gray-500 truncate mt-0.5">{bm.experience}</p>
+                        </div>
+                        {selectedBusinessmanIdx === idx && (
+                          <div className="absolute top-1 right-1 bg-cyan-400 text-black rounded-full p-0.5">
+                            <Check className="w-2.5 h-2.5 stroke-[4]" />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Cost Panel */}
+                <div className="p-3.5 rounded-xl bg-cyan-950/20 border border-cyan-500/15 flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-gray-400 uppercase font-black">Virtual Setup Fee</span>
+                  <span className="text-xs font-bold text-emerald-400 font-mono">0 UGX <span className="text-[9px] font-mono text-emerald-500/80">(FREE OFFER)</span></span>
+                </div>
+
                 <button 
                   type="submit"
                   disabled={loading}
                   className="w-full py-2.5 bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-black rounded-xl transition-all shadow-lg cursor-pointer"
                 >
-                  {loading ? "Starting Business..." : "Establish Shop Registry"}
+                  {loading ? "Establishing Business..." : "Buy Shop & Hire Manager"}
                 </button>
               </form>
             </motion.div>
@@ -2021,6 +2796,69 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
                 >
                   {loading ? "Authorizing Trade Escrow..." : "Confirm & Send UGX Cash"}
                 </button>
+
+                <div className="flex items-center gap-2 my-1 text-gray-600">
+                  <div className="h-px bg-[#1c1c24] flex-1"></div>
+                  <span className="text-[9px] font-mono uppercase tracking-widest text-[#555]">OR</span>
+                  <div className="h-px bg-[#1c1c24] flex-1"></div>
+                </div>
+
+                <button 
+                  onClick={handlePayWithCard}
+                  disabled={loading}
+                  className="w-full py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-black text-xs font-black rounded-xl transition-all shadow-lg cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Smartphone className="w-4 h-4" />
+                  <span>Secure Card Payment Checkout</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* CARD PAYMENT SECURE GATEWAY PORTAL OVERLAY */}
+      <AnimatePresence>
+        {showCardGateway && gatewayUrl && (
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-md z-[70] flex items-center justify-center p-4 animate-fadeIn">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#050508] border border-cyan-500/30 rounded-2xl w-full max-w-lg h-[85%] flex flex-col shadow-2xl overflow-hidden relative"
+            >
+              {/* Top status bar */}
+              <div className="bg-[#0a0a0f] border-b border-cyan-500/10 px-5 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></div>
+                  <span className="text-[10px] font-bold font-mono tracking-wider text-cyan-400 uppercase">Donalisa Secure Gateway Connection</span>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowCardGateway(false);
+                    setGatewaySessionId(null);
+                    setGatewayUrl(null);
+                  }}
+                  className="p-1 rounded bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-all cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Secure frame */}
+              <div className="flex-1 bg-black relative">
+                <iframe
+                  src={gatewayUrl}
+                  className="w-full h-full border-none"
+                  title="BizPay Card Checkout Gateway"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+
+              {/* Bottom protection notice */}
+              <div className="bg-[#030305] px-6 py-3 border-t border-cyan-500/5 flex items-center justify-between text-[10px] text-gray-500">
+                <span>🔒 Secure card session is authorized and cleared over 256-bit SSL</span>
+                <span>PCI-DSS Level 1 Gateway</span>
               </div>
             </motion.div>
           </div>
@@ -2028,5 +2866,6 @@ export default function BizLinkUganda({ onClose, onMinimize, isMinimized }: BizL
       </AnimatePresence>
 
     </div>
+    </>
   );
 }
