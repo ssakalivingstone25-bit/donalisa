@@ -216,7 +216,27 @@ export default function AdminDashboard({
   const grossPlatformEarnings = rentalPaymentsCount * 100000;
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 min-h-[600px] text-gray-200">
+    <div className="space-y-6">
+      {/* Top Header Navigation Bar */}
+      <div className="flex items-center justify-between bg-[#09090d] border border-[#1a1a24] rounded-2xl p-4">
+        <div className="flex items-center gap-3">
+          <ShieldAlert className="w-5 h-5 text-purple-400 animate-pulse" />
+          <div>
+            <h2 className="text-sm font-black text-white font-mono uppercase tracking-wider">Landlord Administration</h2>
+            <p className="text-[10px] text-purple-400 font-bold font-mono tracking-widest uppercase">SUPER ADMIN MASTER DECK</p>
+          </div>
+        </div>
+        {onBackToMarketplace && (
+          <button 
+            onClick={onBackToMarketplace}
+            className="px-4 py-2 bg-[#14141d] hover:bg-gray-800 text-purple-400 border border-gray-800 hover:border-purple-500/30 rounded-xl text-xs font-mono font-black tracking-wider uppercase transition-all cursor-pointer flex items-center gap-1.5 shadow-lg shadow-purple-500/5"
+          >
+            ← Exit to Marketplace
+          </button>
+        )}
+      </div>
+
+      <div className="flex flex-col lg:flex-row gap-6 min-h-[600px] text-gray-200">
       {/* Sidebar Controls */}
       <div className="w-full lg:w-64 bg-[#09090d] border border-[#1a1a24] rounded-2xl p-4 shrink-0 flex flex-col gap-1.5 self-start">
         <div className="flex items-center gap-3 px-3 py-3 border-b border-[#13131a] mb-3">
@@ -667,6 +687,7 @@ export default function AdminDashboard({
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

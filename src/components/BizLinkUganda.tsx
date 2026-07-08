@@ -182,6 +182,17 @@ export default function BizLinkUganda({
                   <span>Inbox</span>
                 </button>
               )}
+
+              {onClose && (
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 bg-rose-600/10 hover:bg-rose-600 hover:text-white text-rose-400 border border-rose-500/20 rounded-xl text-xs font-mono font-black tracking-wider uppercase transition-all cursor-pointer flex items-center gap-1.5 shadow-lg shadow-rose-600/5"
+                  title="Return to Main Portal"
+                >
+                  <X className="w-4 h-4" />
+                  <span>Exit Arcade</span>
+                </button>
+              )}
             </div>
           </div>
 

@@ -197,7 +197,7 @@ export default function ChatCenter({
             {isMerchantView ? 'Customer Chats' : 'My Conversations'}
           </h3>
           {onClose && (
-            <button onClick={onClose} className="p-1 hover:bg-gray-800 rounded-full md:hidden text-gray-400 hover:text-white">
+            <button onClick={onClose} className="p-1 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white transition-colors cursor-pointer">
               <X className="w-4 h-4" />
             </button>
           )}

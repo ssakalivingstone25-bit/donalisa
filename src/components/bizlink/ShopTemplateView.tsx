@@ -198,6 +198,7 @@ export default function ShopTemplateView({
         customerPhone: custPhone.trim(),
         shopId: shop.id,
         shopName: shop.name,
+        merchantId: shop.ownerId || '',
         items: cart.map(item => ({
           productId: item.product.id,
           productTitle: item.product.title,

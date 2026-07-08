@@ -246,13 +246,19 @@ service cloud.firestore {
     }
 
     match /merchant_applications/{appId} {
-      allow get: if isAdmin() || (isSignedIn() && (existing().userId == request.auth.uid || existing().applicantId == request.auth.uid));
-      allow list: if isAdmin() || (isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.applicantId == request.auth.uid));
+      allow get: if isAdmin() || (isSignedIn() && (
+        (existing().userId == request.auth.uid) || 
+        ('applicantId' in existing() && existing().applicantId == request.auth.uid)
+      ));
+      allow list: if isAdmin() || (isSignedIn() && (
+        (resource.data.userId == request.auth.uid) || 
+        ('applicantId' in resource.data && resource.data.applicantId == request.auth.uid)
+      ));
       allow create: if isSignedIn() && isValidId(appId) && isValidApplication(incoming()) && (incoming().status == 'PENDING' || incoming().status == 'pending');
       allow update: if (isAdmin() && isValidId(appId) && isValidApplication(incoming())) || (
         isSignedIn() && isValidId(appId) && 
         (existing().userId == request.auth.uid || existing().applicantId == request.auth.uid) &&
-        (existing().status == 'PENDING' || existing().status == 'pending') && 
+        (existing().status in ['PENDING', 'pending', 'APPROVED', 'approved']) && 
         isValidApplication(incoming()) &&
         (incoming().status in ['PENDING', 'pending', 'APPROVED', 'approved', 'REJECTED', 'rejected', 'paid', 'PAID']) &&
         (!incoming().diff(existing()).affectedKeys().hasAny(['landlordComments']))
@@ -274,14 +280,23 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isAdmin() && isValidId(shopId) && isValidShop(incoming());
       allow update: if (isAdmin() && isValidId(shopId) && isValidShop(incoming())) || (
+        // Action: Owner updates settings
         isSignedIn() && isValidId(shopId) && 
         existing().ownerId == request.auth.uid &&
-        existing().status == 'ACTIVE' &&
+        (existing().status in ['ACTIVE', 'active', 'OCCUPIED', 'occupied']) &&
         isValidShop(incoming()) &&
         incoming().ownerId == existing().ownerId &&
         incoming().templateId == existing().templateId &&
         incoming().status == existing().status &&
         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'logoUrl', 'bannerUrl', 'contactPhone', 'contactEmail'])
+      ) || (
+        // Action: Customer toggles follow
+        isSignedIn() && isValidId(shopId) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().templateId == existing().templateId &&
+        incoming().status == existing().status &&
+        incoming().name == existing().name &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['followers', 'followerCount'])
       );
       allow delete: if isAdmin();
     }
@@ -298,13 +313,13 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isValidId(productId) && isValidProduct(incoming()) && 
                     get(/databases/$(database)/documents/biz_shops/$(incoming().shopId)).data.ownerId == request.auth.uid && 
-                    get(/databases/$(database)/documents/biz_shops/$(incoming().shopId)).data.status == 'ACTIVE';
+                    (get(/databases/$(database)/documents/biz_shops/$(incoming().shopId)).data.status in ['ACTIVE', 'active', 'OCCUPIED', 'occupied']);
       allow update: if (isAdmin() && isValidId(productId) && isValidProduct(incoming())) || (
                     isSignedIn() && isValidId(productId) && 
                     isValidProduct(incoming()) &&
                     incoming().shopId == existing().shopId &&
                     get(/databases/$(database)/documents/biz_shops/$(existing().shopId)).data.ownerId == request.auth.uid &&
-                    get(/databases/$(database)/documents/biz_shops/$(existing().shopId)).data.status == 'ACTIVE'
+                    (get(/databases/$(database)/documents/biz_shops/$(existing().shopId)).data.status in ['ACTIVE', 'active', 'OCCUPIED', 'occupied'])
       );
       allow delete: if isAdmin() || (isSignedIn() && isValidId(productId) && 
                     get(/databases/$(database)/documents/biz_shops/$(existing().shopId)).data.ownerId == request.auth.uid);
@@ -340,21 +355,32 @@ service cloud.firestore {
 
     // 22. Customer Product Orders (Multi-tiered access control)
     function isValidOrder(data) {
-      return data.customerId == request.auth.uid &&
-             data.customerName is string &&
+      return data.customerName is string &&
              data.customerPhone is string &&
              data.shopId is string &&
              (data.totalPrice is number || data.total is number) &&
-             (data.status in ['PENDING', 'PROCESSING', 'SHIPPED', 'COMPLETED', 'CANCELLED', 'pending', 'processing', 'shipped', 'delivered', 'cancelled'] || 
-              data.orderStatus in ['PENDING', 'PROCESSING', 'SHIPPED', 'COMPLETED', 'CANCELLED', 'pending', 'processing', 'shipped', 'delivered', 'cancelled']) &&
+             (
+               (!('status' in data) || data.status in ['PENDING', 'PROCESSING', 'SHIPPED', 'COMPLETED', 'CANCELLED', 'pending', 'processing', 'shipped', 'delivered', 'cancelled']) &&
+               (!('orderStatus' in data) || data.orderStatus in ['PENDING', 'PROCESSING', 'SHIPPED', 'COMPLETED', 'CANCELLED', 'pending', 'processing', 'shipped', 'delivered', 'cancelled'])
+             ) &&
              data.paymentStatus in ['PENDING', 'PAID', 'FAILED', 'pending', 'paid', 'failed'];
     }
 
     match /biz_orders/{orderId} {
-      allow get: if isAdmin() || (isSignedIn() && (existing().customerId == request.auth.uid || get(/databases/$(database)/documents/biz_shops/$(existing().shopId)).data.ownerId == request.auth.uid));
-      allow list: if isAdmin() || (isSignedIn() && (resource.data.customerId == request.auth.uid || get(/databases/$(database)/documents/biz_shops/$(resource.data.shopId)).data.ownerId == request.auth.uid));
-      allow create: if isSignedIn() && isValidId(orderId) && isValidOrder(incoming()) && 
-                    (incoming().status == 'PENDING' || incoming().status == 'pending' || incoming().orderStatus == 'pending' || incoming().orderStatus == 'PENDING') && 
+      allow get: if isAdmin() || (isSignedIn() && (
+        existing().customerId == request.auth.uid || 
+        ('merchantId' in existing() && existing().merchantId == request.auth.uid) ||
+        get(/databases/$(database)/documents/biz_shops/$(existing().shopId)).data.ownerId == request.auth.uid
+      ));
+      allow list: if isAdmin() || (isSignedIn() && (
+        resource.data.customerId == request.auth.uid || 
+        ('merchantId' in resource.data && resource.data.merchantId == request.auth.uid)
+      ));
+      allow create: if isSignedIn() && isValidId(orderId) && incoming().customerId == request.auth.uid && isValidOrder(incoming()) && 
+                    (
+                      (!('status' in incoming()) || incoming().status in ['PENDING', 'pending']) &&
+                      (!('orderStatus' in incoming()) || incoming().orderStatus in ['PENDING', 'pending'])
+                    ) && 
                     (incoming().paymentStatus == 'PENDING' || incoming().paymentStatus == 'pending');
       allow update: if (isAdmin() && isValidId(orderId) && isValidOrder(incoming())) || (
         // Action 1: Merchant advancing fulfillment state
@@ -370,13 +396,19 @@ service cloud.firestore {
         // Action 2: Customer cancelling their own pending order
         isSignedIn() && isValidId(orderId) &&
         existing().customerId == request.auth.uid &&
-        (existing().status == 'PENDING' || existing().status == 'pending' || existing().orderStatus == 'pending' || existing().orderStatus == 'PENDING') &&
+        (
+          ('status' in existing() && (existing().status == 'PENDING' || existing().status == 'pending')) ||
+          ('orderStatus' in existing() && (existing().orderStatus == 'PENDING' || existing().orderStatus == 'pending'))
+        ) &&
         isValidOrder(incoming()) &&
         incoming().customerId == existing().customerId &&
         (incoming().totalPrice == existing().totalPrice || incoming().total == existing().total) &&
         incoming().shopId == existing().shopId &&
         incoming().paymentStatus == existing().paymentStatus &&
-        (incoming().status == 'CANCELLED' || incoming().status == 'cancelled' || incoming().orderStatus == 'cancelled' || incoming().orderStatus == 'CANCELLED') &&
+        (
+          ('status' in incoming() && (incoming().status == 'CANCELLED' || incoming().status == 'cancelled')) ||
+          ('orderStatus' in incoming() && (incoming().orderStatus == 'CANCELLED' || incoming().orderStatus == 'cancelled'))
+        ) &&
         (incoming().diff(existing()).affectedKeys().hasOnly(['status']) || incoming().diff(existing()).affectedKeys().hasOnly(['orderStatus']))
       );
       allow delete: if isAdmin();
@@ -410,29 +442,13 @@ service cloud.firestore {
     }
 
     // 25. BizLink Chat Threads
-    function isValidChat(data) {
-      return (data.customerId == request.auth.uid || data.merchantId == request.auth.uid) &&
-             data.customerId is string &&
-             data.merchantId is string;
-    }
-
     match /biz_chats/{chatId} {
-      allow get, list: if isSignedIn() && (resource.data.customerId == request.auth.uid || resource.data.merchantId == request.auth.uid);
-      allow create, update: if isSignedIn() && isValidId(chatId) && isValidChat(incoming());
-      allow delete: if isAdmin();
+      allow read, write: if isSignedIn();
     }
 
     // 26. BizLink Chat Messages
-    function isValidMessage(data) {
-      return data.senderId == request.auth.uid &&
-             data.chatId is string;
-    }
-
     match /biz_messages/{messageId} {
-      allow get, list: if isSignedIn(); // Filtered by query
-      allow create: if isSignedIn() && isValidId(messageId) && isValidMessage(incoming());
-      allow update: if isSignedIn() && (existing().senderId == request.auth.uid || incoming().read == true);
-      allow delete: if isAdmin();
+      allow read, write: if isSignedIn();
     }
 
   }
