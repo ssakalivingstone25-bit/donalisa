@@ -4,7 +4,7 @@ import {
   Trash2, Plus, Info, HelpCircle, Film, Radio, 
   Flame, ShieldCheck, AlertCircle, Loader2, User, Check, Download,
   UploadCloud, FileVideo, Image, Calendar, Eye, X, Star, Bookmark, ChevronLeft, ChevronRight, SlidersHorizontal,
-  Music, MessageSquare, ThumbsUp, MessageCircle, Globe, Briefcase, Building2
+  Music, MessageSquare, ThumbsUp, MessageCircle, Globe
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Movie, FavoriteItem, WatchHistoryItem, Comment, CommentLike } from '@/types';
@@ -420,10 +420,9 @@ function MovieCard({
 interface StreamingPortalProps {
   activeTab?: 'catalog' | 'profile' | 'admin_dashboard' | 'downloads';
   setActiveTab?: (tab: 'catalog' | 'profile' | 'admin_dashboard' | 'downloads') => void;
-  onOpenBizLink?: () => void;
 }
 
-export default function StreamingPortal({ activeTab, setActiveTab, onOpenBizLink }: StreamingPortalProps = {}) {
+export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPortalProps = {}) {
   const { user } = useAuthStore();
   const { playMovie, currentMovie, closePlayer, theaterMode, isPlaying, togglePlay } = usePlayerStore();
   const { searchQuery, setSearchQuery } = useSearchStore();
@@ -2065,14 +2064,6 @@ export default function StreamingPortal({ activeTab, setActiveTab, onOpenBizLink
                 <span>My Downloads</span>
               </button>
               
-              {/* BizLink Uganda Portal Tab Trigger */}
-              <button
-                onClick={() => onOpenBizLink?.()}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer text-[#00E5FF] hover:text-white hover:bg-cyan-950/30 border border-cyan-500/20"
-              >
-                <Briefcase className="w-3.5 h-3.5 text-yellow-400" />
-                <span>BizLink Uganda</span>
-              </button>
               {user?.role === 'admin' && (
                 <>
                   <button

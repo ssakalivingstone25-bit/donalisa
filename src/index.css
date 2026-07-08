@@ -55,6 +55,23 @@ html, body {
   animation: pulseGlow 3s infinite ease-in-out;
 }
 
+@keyframes breathe {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 4px rgba(6, 182, 212, 0.15);
+    border-color: rgba(6, 182, 212, 0.25);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 0 14px rgba(6, 182, 212, 0.45);
+    border-color: rgba(6, 182, 212, 0.6);
+  }
+}
+
+.animate-breathe {
+  animation: breathe 3.5s infinite ease-in-out;
+}
+
 @keyframes marquee {
   0% { transform: translateX(0%); }
   100% { transform: translateX(-50%); }

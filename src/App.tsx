@@ -8,7 +8,7 @@ import {
   CheckCircle2, Server, Smartphone, Database, Lock, Cloud, 
   Bell, Sparkles, Terminal, FileCode, Check, ArrowRight,
   Flame, Key, HardDrive, Cpu, AlertCircle, Tv, LogOut, User,
-  Loader2, Search, Facebook, Twitter, Youtube, Briefcase, Building2
+  Loader2, Search, Facebook, Twitter, Youtube
 } from 'lucide-react';
 import { auth, db, firebaseConfig } from '@/firebase/config';
 import { handleFirestoreError, OperationType } from '@/lib/firestoreErrors';
@@ -35,9 +35,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'init' | 'firebase' | 'collections' | 'storage' | 'security' | 'testing'>('firebase');
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
 
-  const [activePortalTab, setActivePortalTab] = useState<'catalog' | 'profile' | 'admin_dashboard'>('catalog');
-  const [isBizLinkOpen, setIsBizLinkOpen] = useState(false);
-  const [isBizLinkMinimized, setIsBizLinkMinimized] = useState(false);
+  const [activePortalTab, setActivePortalTab] = useState<'catalog' | 'profile' | 'admin_dashboard' | 'bizlink'>('catalog');
 
   // Social Links state
   const [socialLinks, setSocialLinks] = useState({
@@ -238,20 +236,17 @@ export default function App() {
 
             {user ? (
               <div className="flex items-center gap-4">
-                {/* BizLink Uganda Launch Button */}
+                {/* BizLink Uganda Button */}
                 <button
-                  onClick={() => {
-                    setIsBizLinkOpen(true);
-                    setIsBizLinkMinimized(false);
-                  }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all border cursor-pointer h-9 ${
-                    isBizLinkOpen && !isBizLinkMinimized
-                      ? 'bg-cyan-500 text-black border-transparent shadow-lg shadow-cyan-500/30'
-                      : 'bg-[#111] hover:bg-[#1f1f1f] border-[#222] text-[#00E5FF] hover:text-white'
-                  }`}
                   id="header-bizlink-btn"
+                  onClick={() => setActivePortalTab('bizlink')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all border cursor-pointer h-9 ${
+                    activePortalTab === 'bizlink'
+                      ? 'bg-cyan-600 text-black border-transparent shadow-lg shadow-cyan-600/30 font-black'
+                      : 'bg-[#111] hover:bg-[#1f1f1f] border-[#222] text-cyan-400 hover:text-white animate-breathe'
+                  }`}
                 >
-                  <Briefcase className="w-3.5 h-3.5 text-yellow-400" />
+                  <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
                   <span>BizLink Uganda</span>
                 </button>
 
@@ -391,33 +386,18 @@ export default function App() {
         {/* Primary Page Content */}
         {user ? (
           <main className="max-w-7xl mx-auto px-6 pt-8 space-y-6">
-            <StreamingPortal 
-              activeTab={activePortalTab} 
-              setActiveTab={setActivePortalTab} 
-              onOpenBizLink={() => {
-                setIsBizLinkOpen(true);
-                setIsBizLinkMinimized(false);
-              }}
-            />
-
-            {/* BizLink Uganda In-App Floating Window */}
-            {isBizLinkOpen && (
+            {activePortalTab === 'bizlink' ? (
               <BizLinkUganda 
-                onClose={() => setIsBizLinkOpen(false)}
-                onMinimize={() => setIsBizLinkMinimized(true)}
-                isMinimized={isBizLinkMinimized}
+                currentUserId={user.uid}
+                currentUserName={user.displayName || user.email.split('@')[0]}
+                currentUserEmail={user.email}
+                onClose={() => setActivePortalTab('catalog')}
               />
-            )}
-
-            {/* PERSISTENT FLOATING TASKBAR ICON FOR MINIMIZED BIZLINK WINDOW */}
-            {isBizLinkOpen && isBizLinkMinimized && (
-              <button
-                onClick={() => setIsBizLinkMinimized(false)}
-                className="fixed bottom-24 right-6 z-50 flex items-center gap-2 bg-[#0c0c0f]/95 hover:bg-cyan-950/80 backdrop-blur-md border border-cyan-500/40 rounded-full shadow-2xl p-2.5 px-4 animate-in fade-in slide-in-from-bottom-5 duration-300 text-cyan-400 font-mono text-[10px] font-black cursor-pointer"
-              >
-                <Building2 className="w-4 h-4 text-cyan-400 animate-bounce" />
-                <span>RESTORE BIZLINK UGANDA</span>
-              </button>
+            ) : (
+              <StreamingPortal 
+                activeTab={activePortalTab} 
+                setActiveTab={setActivePortalTab} 
+              />
             )}
           </main>
         ) : (

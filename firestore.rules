@@ -2,82 +2,438 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Highly permissive rules to prevent any permission-denied errors on onSnapshot or WebRTC signalling
     
+    // ==========================================
+    // GLOBAL DEFAULT DENY & SECURITY NET (Pillar 1)
+    // ==========================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ==========================================
+    // GLOBAL PRIMITIVES & IDENTITY HELPERS (Pillar 3)
+    // ==========================================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+    
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'ssakalivingstone25@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+    
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-\\+\\.\\@]+$');
+    }
+    
+    function incoming() {
+      return request.resource.data;
+    }
+    
+    function existing() {
+      return resource.data;
+    }
+
+    // ==========================================
+    // COLLECTION-SPECIFIC RULES (Pillars 2, 4, 5, 6, 8)
+    // ==========================================
+
+    // 1. Users profiles
+    function isValidUser(data) {
+      return data.uid is string && data.uid == request.auth.uid &&
+             data.email is string && data.email.size() > 0 && data.email.size() <= 200 &&
+             data.displayName is string && data.displayName.size() <= 100 &&
+             (data.role == 'viewer' || data.role == 'admin' || data.role == 'merchant') &&
+             (data.createdAt is string || data.createdAt is timestamp);
+    }
+
     match /users/{userId} {
-      allow read, write: if true;
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && isValidId(userId) && isOwner(userId) && isValidUser(incoming()) && incoming().role == 'viewer';
+      allow update: if (isSignedIn() && isValidId(userId) && isOwner(userId) && isValidUser(incoming()) && incoming().role == existing().role) || isAdmin();
+      allow delete: if isAdmin();
     }
-    
+
+    // 2. Movies Catalog
+    function isValidMovie(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.description is string && data.description.size() <= 2000 &&
+             data.videoUrl is string && data.videoUrl.size() <= 1000 &&
+             data.posterUrl is string && data.posterUrl.size() <= 1000 &&
+             data.type in ['movie', 'series', 'music'] &&
+             data.uploadedBy is string;
+    }
+
     match /movies/{movieId} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidId(movieId) && (request.method == 'delete' || isValidMovie(incoming()));
     }
-    
+
+    // 3. Active Heartbeat Viewers
+    function isValidViewer(data) {
+      return data.userId == request.auth.uid &&
+             data.userEmail is string && data.userEmail.size() <= 200 &&
+             data.movieId is string && data.movieId.size() <= 100 &&
+             data.userName is string && data.userName.size() <= 150;
+    }
+
     match /active_viewers/{viewerId} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(viewerId) && isOwner(viewerId) && isValidViewer(incoming());
+      allow delete: if isSignedIn() && isValidId(viewerId) && isOwner(viewerId);
     }
-    
+
+    // 4. Categories list
     match /categories/{categoryId} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidId(categoryId);
     }
-    
+
+    // 5. User Favorites (Pillar 8: Query Enforcer)
+    function isValidFavorite(data) {
+      return data.userId == request.auth.uid && data.movieId is string;
+    }
+
     match /favorites/{favoriteId} {
-      allow read, write: if true;
+      allow create: if isSignedIn() && isValidId(favoriteId) && isValidFavorite(incoming());
+      allow delete: if isSignedIn() && isValidId(favoriteId) && (existing().userId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
-    
+
+    // 6. User Watch History (Pillar 8: Query Enforcer)
+    function isValidWatchHistory(data) {
+      return data.userId == request.auth.uid && data.movieId is string && data.position is number;
+    }
+
     match /watchHistory/{historyId} {
-      allow read, write: if true;
+      allow create, update: if isSignedIn() && isValidId(historyId) && isValidWatchHistory(incoming());
+      allow delete: if isSignedIn() && isValidId(historyId) && (existing().userId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
-    
+
+    // 7. Cached / Synced Downloads
+    function isValidDownload(data) {
+      return data.userId == request.auth.uid && data.movieId is string;
+    }
+
     match /downloads/{downloadId} {
-      allow read, write: if true;
+      allow create: if isSignedIn() && isValidId(downloadId) && isValidDownload(incoming());
+      allow delete: if isSignedIn() && isValidId(downloadId) && (existing().userId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
-    
+
+    // 8. Notifications Feed
+    function isValidNotification(data) {
+      return data.title is string && data.title.size() <= 200 &&
+             data.message is string && data.message.size() <= 2000;
+    }
+
     match /notifications/{notificationId} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidId(notificationId) && (request.method == 'delete' || isValidNotification(incoming()));
     }
-    
+
+    // 9. Ratings Tracker
+    function isValidRating(data) {
+      return data.userId == request.auth.uid &&
+             data.movieId is string &&
+             data.rating is number && data.rating >= 1 && data.rating <= 5;
+    }
+
     match /ratings/{ratingId} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(ratingId) && isValidRating(incoming());
+      allow delete: if isSignedIn() && isValidId(ratingId) && (existing().userId == request.auth.uid || isAdmin());
     }
-    
+
+    // 10. Play Later Watchlist
+    function isValidWatchlist(data) {
+      return data.userId == request.auth.uid && data.movieId is string;
+    }
+
     match /watchlist/{watchlistId} {
-      allow read, write: if true;
+      allow create: if isSignedIn() && isValidId(watchlistId) && isValidWatchlist(incoming());
+      allow delete: if isSignedIn() && isValidId(watchlistId) && (existing().userId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
-    
+
+    // 11. System settings
     match /settings/{settingId} {
-      allow read, write: if true;
+      allow read: if true; // Publicly readable (e.g. social links before login)
+      allow write: if isAdmin() && isValidId(settingId);
     }
-    
+
+    // 12. Streaming Comments & Reviews
+    function isValidComment(data) {
+      return data.userId == request.auth.uid &&
+             data.userEmail is string && data.userEmail.size() <= 200 &&
+             data.movieId is string &&
+             data.userName is string && data.userName.size() <= 150 &&
+             data.text is string && data.text.size() > 0 && data.text.size() <= 1000;
+    }
+
     match /comments/{commentId} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(commentId) && isValidComment(incoming());
+      allow update, delete: if isSignedIn() && isValidId(commentId) && (existing().userId == request.auth.uid || isAdmin());
     }
-    
+
+    // 13. Comment Likes Upvotes
+    function isValidCommentLike(data) {
+      return data.userId == request.auth.uid && data.commentId is string;
+    }
+
     match /comment_likes/{likeId} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(likeId) && isValidCommentLike(incoming());
+      allow delete: if isSignedIn() && isValidId(likeId) && (existing().userId == request.auth.uid || isAdmin());
     }
-    
+
+    // 14. Live Studio Broadcast descriptors
     match /broadcast/{broadcastId} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidId(broadcastId);
     }
-    
+
+    // 15. Live Signaling (WebRTC Co-Watching)
+    function isValidSignal(data) {
+      return (data.senderId == request.auth.uid || data.receiverId == request.auth.uid) &&
+             data.signal is string && data.signal.size() <= 5000;
+    }
+
     match /webrtc_signals/{signalId} {
-      allow read, write: if true;
+      allow create: if isSignedIn() && isValidId(signalId) && isValidSignal(incoming());
+      allow read, delete: if isSignedIn() && isValidId(signalId) && (existing().senderId == request.auth.uid || existing().receiverId == request.auth.uid || isAdmin());
     }
-    
+
+    // ==========================================
+    // BIZLINK UGANDA DIGITAL MARKETPLACE (CAMPALA)
+    // ==========================================
+
+    // 16. Admin Owned Shop Templates
+    function isValidTemplate(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.style is string && data.style.size() <= 50 &&
+             data.description is string && data.description.size() <= 1000 &&
+             data.basePrice is number && data.basePrice >= 0;
+    }
+
+    match /shop_templates/{tempId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidId(tempId) && (request.method == 'delete' || isValidTemplate(incoming()));
+    }
+
+    // 17. Businessman applications to own/rent shops
+    function isValidApplication(data) {
+      return (data.applicantId == request.auth.uid || data.userId == request.auth.uid) &&
+             (data.applicantName is string || data.userName is string) &&
+             (data.applicantEmail is string || data.userEmail is string) &&
+             data.businessName is string && data.businessName.size() > 0 && data.businessName.size() <= 200 &&
+             data.businessType is string && data.businessType.size() <= 100 &&
+             (data.status in ['PENDING', 'APPROVED', 'REJECTED', 'pending', 'approved', 'rejected', 'paid', 'PAID']);
+    }
+
+    match /merchant_applications/{appId} {
+      allow get: if isAdmin() || (isSignedIn() && (existing().userId == request.auth.uid || existing().applicantId == request.auth.uid));
+      allow list: if isAdmin() || (isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.applicantId == request.auth.uid));
+      allow create: if isSignedIn() && isValidId(appId) && isValidApplication(incoming()) && (incoming().status == 'PENDING' || incoming().status == 'pending');
+      allow update: if (isAdmin() && isValidId(appId) && isValidApplication(incoming())) || (
+        isSignedIn() && isValidId(appId) && 
+        (existing().userId == request.auth.uid || existing().applicantId == request.auth.uid) &&
+        (existing().status == 'PENDING' || existing().status == 'pending') && 
+        isValidApplication(incoming()) &&
+        (incoming().status in ['PENDING', 'pending', 'APPROVED', 'approved', 'REJECTED', 'rejected', 'paid', 'PAID']) &&
+        (!incoming().diff(existing()).affectedKeys().hasAny(['landlordComments']))
+      );
+      allow delete: if isAdmin() || (isSignedIn() && (existing().userId == request.auth.uid || existing().applicantId == request.auth.uid) && (existing().status == 'PENDING' || existing().status == 'pending'));
+    }
+
+    // 18. Registered Stalls / Shops
+    function isValidShop(data) {
+      return data.ownerId is string &&
+             data.ownerEmail is string &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.description is string && data.description.size() <= 1000 &&
+             (data.status in ['ACTIVE', 'SUSPENDED', 'OCCUPIED', 'active', 'suspended', 'occupied']) &&
+             data.templateId is string;
+    }
+
     match /biz_shops/{shopId} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow create: if isAdmin() && isValidId(shopId) && isValidShop(incoming());
+      allow update: if (isAdmin() && isValidId(shopId) && isValidShop(incoming())) || (
+        isSignedIn() && isValidId(shopId) && 
+        existing().ownerId == request.auth.uid &&
+        existing().status == 'ACTIVE' &&
+        isValidShop(incoming()) &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().templateId == existing().templateId &&
+        incoming().status == existing().status &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'logoUrl', 'bannerUrl', 'contactPhone', 'contactEmail'])
+      );
+      allow delete: if isAdmin();
     }
-    
+
+    // 19. Products uploaded by merchants (Pillar 1 Master Gate validation)
+    function isValidProduct(data) {
+      return data.shopId is string &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 150 &&
+             data.price is number && data.price >= 0 &&
+             data.category is string && data.category.size() <= 100;
+    }
+
     match /biz_products/{productId} {
-      allow read, write: if true;
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(productId) && isValidProduct(incoming()) && 
+                    get(/databases/$(database)/documents/biz_shops/$(incoming().shopId)).data.ownerId == request.auth.uid && 
+                    get(/databases/$(database)/documents/biz_shops/$(incoming().shopId)).data.status == 'ACTIVE';
+      allow update: if (isAdmin() && isValidId(productId) && isValidProduct(incoming())) || (
+                    isSignedIn() && isValidId(productId) && 
+                    isValidProduct(incoming()) &&
+                    incoming().shopId == existing().shopId &&
+                    get(/databases/$(database)/documents/biz_shops/$(existing().shopId)).data.ownerId == request.auth.uid &&
+                    get(/databases/$(database)/documents/biz_shops/$(existing().shopId)).data.status == 'ACTIVE'
+      );
+      allow delete: if isAdmin() || (isSignedIn() && isValidId(productId) && 
+                    get(/databases/$(database)/documents/biz_shops/$(existing().shopId)).data.ownerId == request.auth.uid);
     }
-    
+
+    // 20. Ledger / Rent / Commission payments
+    function isValidTransaction(data) {
+      return data.amount is number && data.amount > 0 &&
+             data.payerId is string &&
+             data.payerEmail is string &&
+             (data.type in ['RENT_PAYMENT', 'COMMISSION', 'WITHDRAWAL', 'rent_payment', 'commission', 'withdrawal']) &&
+             (data.status in ['PENDING', 'COMPLETED', 'FAILED', 'pending', 'completed', 'failed']);
+    }
+
     match /biz_transactions/{transactionId} {
-      allow read, write: if true;
+      allow create: if isSignedIn() && isValidId(transactionId) && isValidTransaction(incoming()) && incoming().payerId == request.auth.uid && (incoming().status == 'PENDING' || incoming().status == 'pending');
+      allow update: if isAdmin() && isValidId(transactionId) && isValidTransaction(incoming());
+      allow get: if isAdmin() || (isSignedIn() && existing().payerId == request.auth.uid);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.payerId == request.auth.uid);
+      allow delete: if isAdmin();
     }
-    
+
+    // 21. Wallets ledger (Pillar 6 Isolated PII & ledger rules)
+    function isValidWallet(data) {
+      return data.merchantId is string && data.balance is number && data.balance >= 0;
+    }
+
     match /biz_wallets/{walletId} {
-      allow read, write: if true;
+      allow write: if isAdmin() && isValidId(walletId) && isValidWallet(incoming());
+      allow get: if isAdmin() || (isSignedIn() && existing().merchantId == request.auth.uid);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.merchantId == request.auth.uid);
     }
+
+    // 22. Customer Product Orders (Multi-tiered access control)
+    function isValidOrder(data) {
+      return data.customerId == request.auth.uid &&
+             data.customerName is string &&
+             data.customerPhone is string &&
+             data.shopId is string &&
+             (data.totalPrice is number || data.total is number) &&
+             (data.status in ['PENDING', 'PROCESSING', 'SHIPPED', 'COMPLETED', 'CANCELLED', 'pending', 'processing', 'shipped', 'delivered', 'cancelled'] || 
+              data.orderStatus in ['PENDING', 'PROCESSING', 'SHIPPED', 'COMPLETED', 'CANCELLED', 'pending', 'processing', 'shipped', 'delivered', 'cancelled']) &&
+             data.paymentStatus in ['PENDING', 'PAID', 'FAILED', 'pending', 'paid', 'failed'];
+    }
+
+    match /biz_orders/{orderId} {
+      allow get: if isAdmin() || (isSignedIn() && (existing().customerId == request.auth.uid || get(/databases/$(database)/documents/biz_shops/$(existing().shopId)).data.ownerId == request.auth.uid));
+      allow list: if isAdmin() || (isSignedIn() && (resource.data.customerId == request.auth.uid || get(/databases/$(database)/documents/biz_shops/$(resource.data.shopId)).data.ownerId == request.auth.uid));
+      allow create: if isSignedIn() && isValidId(orderId) && isValidOrder(incoming()) && 
+                    (incoming().status == 'PENDING' || incoming().status == 'pending' || incoming().orderStatus == 'pending' || incoming().orderStatus == 'PENDING') && 
+                    (incoming().paymentStatus == 'PENDING' || incoming().paymentStatus == 'pending');
+      allow update: if (isAdmin() && isValidId(orderId) && isValidOrder(incoming())) || (
+        // Action 1: Merchant advancing fulfillment state
+        isSignedIn() && isValidId(orderId) && 
+        get(/databases/$(database)/documents/biz_shops/$(existing().shopId)).data.ownerId == request.auth.uid &&
+        isValidOrder(incoming()) &&
+        incoming().customerId == existing().customerId &&
+        (incoming().totalPrice == existing().totalPrice || incoming().total == existing().total) &&
+        incoming().shopId == existing().shopId &&
+        incoming().paymentStatus == existing().paymentStatus &&
+        (incoming().diff(existing()).affectedKeys().hasOnly(['status']) || incoming().diff(existing()).affectedKeys().hasOnly(['orderStatus']))
+      ) || (
+        // Action 2: Customer cancelling their own pending order
+        isSignedIn() && isValidId(orderId) &&
+        existing().customerId == request.auth.uid &&
+        (existing().status == 'PENDING' || existing().status == 'pending' || existing().orderStatus == 'pending' || existing().orderStatus == 'PENDING') &&
+        isValidOrder(incoming()) &&
+        incoming().customerId == existing().customerId &&
+        (incoming().totalPrice == existing().totalPrice || incoming().total == existing().total) &&
+        incoming().shopId == existing().shopId &&
+        incoming().paymentStatus == existing().paymentStatus &&
+        (incoming().status == 'CANCELLED' || incoming().status == 'cancelled' || incoming().orderStatus == 'cancelled' || incoming().orderStatus == 'CANCELLED') &&
+        (incoming().diff(existing()).affectedKeys().hasOnly(['status']) || incoming().diff(existing()).affectedKeys().hasOnly(['orderStatus']))
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 23. Interactive reviews
+    function isValidReview(data) {
+      return data.userId == request.auth.uid &&
+             data.userName is string &&
+             data.shopId is string &&
+             data.rating is number && data.rating >= 1 && data.rating <= 5 &&
+             data.text is string && data.text.size() <= 1000;
+    }
+
+    match /biz_reviews/{reviewId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(reviewId) && isValidReview(incoming());
+      allow delete: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
+    }
+
+    // 24. Audit and platform trace logs
+    function isValidLog(data) {
+      return data.operatorId == request.auth.uid &&
+             data.action is string && data.action.size() <= 100 &&
+             data.details is string && data.details.size() <= 1000;
+    }
+
+    match /marketplace_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn() && isValidId(logId) && isValidLog(incoming());
+    }
+
+    // 25. BizLink Chat Threads
+    function isValidChat(data) {
+      return (data.customerId == request.auth.uid || data.merchantId == request.auth.uid) &&
+             data.customerId is string &&
+             data.merchantId is string;
+    }
+
+    match /biz_chats/{chatId} {
+      allow get, list: if isSignedIn() && (resource.data.customerId == request.auth.uid || resource.data.merchantId == request.auth.uid);
+      allow create, update: if isSignedIn() && isValidId(chatId) && isValidChat(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // 26. BizLink Chat Messages
+    function isValidMessage(data) {
+      return data.senderId == request.auth.uid &&
+             data.chatId is string;
+    }
+
+    match /biz_messages/{messageId} {
+      allow get, list: if isSignedIn(); // Filtered by query
+      allow create: if isSignedIn() && isValidId(messageId) && isValidMessage(incoming());
+      allow update: if isSignedIn() && (existing().senderId == request.auth.uid || incoming().read == true);
+      allow delete: if isAdmin();
+    }
+
   }
 }
