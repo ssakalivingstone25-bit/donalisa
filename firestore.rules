@@ -23,7 +23,7 @@ service cloud.firestore {
     
     function isAdmin() {
       return isSignedIn() && (
-        request.auth.token.email == 'ssakalivingstone25@gmail.com' ||
+        ('email' in request.auth.token && request.auth.token.email == 'ssakalivingstone25@gmail.com') ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
@@ -80,15 +80,14 @@ service cloud.firestore {
     // 3. Active Heartbeat Viewers
     function isValidViewer(data) {
       return data.userId == request.auth.uid &&
-             data.userEmail is string && data.userEmail.size() <= 200 &&
              data.movieId is string && data.movieId.size() <= 100 &&
-             data.userName is string && data.userName.size() <= 150;
+             data.lastActive is string;
     }
 
     match /active_viewers/{viewerId} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn() && isValidId(viewerId) && isOwner(viewerId) && isValidViewer(incoming());
-      allow delete: if isSignedIn() && isValidId(viewerId) && isOwner(viewerId);
+      allow create, update: if isSignedIn() && isValidId(viewerId) && viewerId.startsWith(request.auth.uid) && isValidViewer(incoming());
+      allow delete: if isSignedIn() && isValidId(viewerId) && viewerId.startsWith(request.auth.uid);
     }
 
     // 4. Categories list
@@ -237,33 +236,38 @@ service cloud.firestore {
 
     // 17. Businessman applications to own/rent shops
     function isValidApplication(data) {
-      return (data.applicantId == request.auth.uid || data.userId == request.auth.uid) &&
-             (data.applicantName is string || data.userName is string) &&
-             (data.applicantEmail is string || data.userEmail is string) &&
-             data.businessName is string && data.businessName.size() > 0 && data.businessName.size() <= 200 &&
-             data.businessType is string && data.businessType.size() <= 100 &&
-             (data.status in ['PENDING', 'APPROVED', 'REJECTED', 'pending', 'approved', 'rejected', 'paid', 'PAID']);
+      return (
+        (('applicantId' in data && data.applicantId == request.auth.uid) || ('userId' in data && data.userId == request.auth.uid)) &&
+        (('applicantName' in data && data.applicantName is string) || ('userName' in data && data.userName is string)) &&
+        (('applicantEmail' in data && data.applicantEmail is string) || ('userEmail' in data && data.userEmail is string)) &&
+        data.businessName is string && data.businessName.size() > 0 && data.businessName.size() <= 200 &&
+        data.businessType is string && data.businessType.size() <= 100 &&
+        (data.status in ['PENDING', 'APPROVED', 'REJECTED', 'pending', 'approved', 'rejected', 'paid', 'PAID'])
+      );
     }
 
     match /merchant_applications/{appId} {
       allow get: if isAdmin() || (isSignedIn() && (
-        (existing().userId == request.auth.uid) || 
+        ('userId' in existing() && existing().userId == request.auth.uid) || 
         ('applicantId' in existing() && existing().applicantId == request.auth.uid)
       ));
       allow list: if isAdmin() || (isSignedIn() && (
-        (resource.data.userId == request.auth.uid) || 
+        ('userId' in resource.data && resource.data.userId == request.auth.uid) || 
         ('applicantId' in resource.data && resource.data.applicantId == request.auth.uid)
       ));
       allow create: if isSignedIn() && isValidId(appId) && isValidApplication(incoming()) && (incoming().status == 'PENDING' || incoming().status == 'pending');
       allow update: if (isAdmin() && isValidId(appId) && isValidApplication(incoming())) || (
         isSignedIn() && isValidId(appId) && 
-        (existing().userId == request.auth.uid || existing().applicantId == request.auth.uid) &&
-        (existing().status in ['PENDING', 'pending', 'APPROVED', 'approved']) && 
+        (('userId' in existing() && existing().userId == request.auth.uid) || ('applicantId' in existing() && existing().applicantId == request.auth.uid)) &&
+        ('status' in existing() && existing().status in ['PENDING', 'pending', 'APPROVED', 'approved']) && 
         isValidApplication(incoming()) &&
-        (incoming().status in ['PENDING', 'pending', 'APPROVED', 'approved', 'REJECTED', 'rejected', 'paid', 'PAID']) &&
+        ('status' in incoming() && incoming().status in ['PENDING', 'pending', 'APPROVED', 'approved', 'REJECTED', 'rejected', 'paid', 'PAID']) &&
         (!incoming().diff(existing()).affectedKeys().hasAny(['landlordComments']))
       );
-      allow delete: if isAdmin() || (isSignedIn() && (existing().userId == request.auth.uid || existing().applicantId == request.auth.uid) && (existing().status == 'PENDING' || existing().status == 'pending'));
+      allow delete: if isAdmin() || (isSignedIn() && (
+        ('userId' in existing() && existing().userId == request.auth.uid) || 
+        ('applicantId' in existing() && existing().applicantId == request.auth.uid)
+      ) && ('status' in existing() && (existing().status == 'PENDING' || existing().status == 'pending')));
     }
 
     // 18. Registered Stalls / Shops
@@ -358,22 +362,22 @@ service cloud.firestore {
       return data.customerName is string &&
              data.customerPhone is string &&
              data.shopId is string &&
-             (data.totalPrice is number || data.total is number) &&
+             (('totalPrice' in data && data.totalPrice is number) || ('total' in data && data.total is number)) &&
              (
                (!('status' in data) || data.status in ['PENDING', 'PROCESSING', 'SHIPPED', 'COMPLETED', 'CANCELLED', 'pending', 'processing', 'shipped', 'delivered', 'cancelled']) &&
                (!('orderStatus' in data) || data.orderStatus in ['PENDING', 'PROCESSING', 'SHIPPED', 'COMPLETED', 'CANCELLED', 'pending', 'processing', 'shipped', 'delivered', 'cancelled'])
              ) &&
-             data.paymentStatus in ['PENDING', 'PAID', 'FAILED', 'pending', 'paid', 'failed'];
+             (!('paymentStatus' in data) || data.paymentStatus in ['PENDING', 'PAID', 'FAILED', 'pending', 'paid', 'failed']);
     }
 
     match /biz_orders/{orderId} {
       allow get: if isAdmin() || (isSignedIn() && (
-        existing().customerId == request.auth.uid || 
+        ('customerId' in existing() && existing().customerId == request.auth.uid) || 
         ('merchantId' in existing() && existing().merchantId == request.auth.uid) ||
-        get(/databases/$(database)/documents/biz_shops/$(existing().shopId)).data.ownerId == request.auth.uid
+        ('shopId' in existing() && exists(/databases/$(database)/documents/biz_shops/$(existing().shopId)) && get(/databases/$(database)/documents/biz_shops/$(existing().shopId)).data.ownerId == request.auth.uid)
       ));
       allow list: if isAdmin() || (isSignedIn() && (
-        resource.data.customerId == request.auth.uid || 
+        ('customerId' in resource.data && resource.data.customerId == request.auth.uid) || 
         ('merchantId' in resource.data && resource.data.merchantId == request.auth.uid)
       ));
       allow create: if isSignedIn() && isValidId(orderId) && incoming().customerId == request.auth.uid && isValidOrder(incoming()) && 
@@ -381,30 +385,30 @@ service cloud.firestore {
                       (!('status' in incoming()) || incoming().status in ['PENDING', 'pending']) &&
                       (!('orderStatus' in incoming()) || incoming().orderStatus in ['PENDING', 'pending'])
                     ) && 
-                    (incoming().paymentStatus == 'PENDING' || incoming().paymentStatus == 'pending');
+                    (!('paymentStatus' in incoming()) || incoming().paymentStatus == 'PENDING' || incoming().paymentStatus == 'pending');
       allow update: if (isAdmin() && isValidId(orderId) && isValidOrder(incoming())) || (
         // Action 1: Merchant advancing fulfillment state
         isSignedIn() && isValidId(orderId) && 
-        get(/databases/$(database)/documents/biz_shops/$(existing().shopId)).data.ownerId == request.auth.uid &&
+        ('shopId' in existing() && exists(/databases/$(database)/documents/biz_shops/$(existing().shopId)) && get(/databases/$(database)/documents/biz_shops/$(existing().shopId)).data.ownerId == request.auth.uid) &&
         isValidOrder(incoming()) &&
         incoming().customerId == existing().customerId &&
-        (incoming().totalPrice == existing().totalPrice || incoming().total == existing().total) &&
+        (('totalPrice' in incoming() && 'totalPrice' in existing() && incoming().totalPrice == existing().totalPrice) || ('total' in incoming() && 'total' in existing() && incoming().total == existing().total)) &&
         incoming().shopId == existing().shopId &&
-        incoming().paymentStatus == existing().paymentStatus &&
+        (!('paymentStatus' in incoming()) || !('paymentStatus' in existing()) || incoming().paymentStatus == existing().paymentStatus) &&
         (incoming().diff(existing()).affectedKeys().hasOnly(['status']) || incoming().diff(existing()).affectedKeys().hasOnly(['orderStatus']))
       ) || (
         // Action 2: Customer cancelling their own pending order
         isSignedIn() && isValidId(orderId) &&
-        existing().customerId == request.auth.uid &&
+        ('customerId' in existing() && existing().customerId == request.auth.uid) &&
         (
           ('status' in existing() && (existing().status == 'PENDING' || existing().status == 'pending')) ||
           ('orderStatus' in existing() && (existing().orderStatus == 'PENDING' || existing().orderStatus == 'pending'))
         ) &&
         isValidOrder(incoming()) &&
         incoming().customerId == existing().customerId &&
-        (incoming().totalPrice == existing().totalPrice || incoming().total == existing().total) &&
+        (('totalPrice' in incoming() && 'totalPrice' in existing() && incoming().totalPrice == existing().totalPrice) || ('total' in incoming() && 'total' in existing() && incoming().total == existing().total)) &&
         incoming().shopId == existing().shopId &&
-        incoming().paymentStatus == existing().paymentStatus &&
+        (!('paymentStatus' in incoming()) || !('paymentStatus' in existing()) || incoming().paymentStatus == existing().paymentStatus) &&
         (
           ('status' in incoming() && (incoming().status == 'CANCELLED' || incoming().status == 'cancelled')) ||
           ('orderStatus' in incoming() && (incoming().orderStatus == 'CANCELLED' || incoming().orderStatus == 'cancelled'))
