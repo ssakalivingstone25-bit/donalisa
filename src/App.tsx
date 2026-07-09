@@ -629,8 +629,9 @@ export default function App() {
   uid: string; // Firebase Auth UID
   email: string;
   displayName?: string;
-  role: 'viewer' | 'admin';
+  role: 'viewer' | 'admin' | 'merchant';
   createdAt: string;
+  verificationStatus?: 'pending' | 'verified' | 'rejected' | 'none';
 }`}
                           </pre>
                         </div>

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type UserRole = 'viewer' | 'admin';
+export type UserRole = 'viewer' | 'admin' | 'merchant';
 
 export interface UserProfile {
   uid: string;
@@ -12,6 +12,7 @@ export interface UserProfile {
   photoURL?: string;
   role: UserRole;
   createdAt: string;
+  verificationStatus?: 'pending' | 'verified' | 'rejected' | 'none';
   preferences?: {
     theme: 'dark' | 'light' | 'system';
     notificationsEnabled: boolean;

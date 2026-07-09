@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   User, Camera, Mail, Calendar, Shield, UploadCloud, 
-  Check, Loader2, Star, Bookmark, Clock, Trash2, Play 
+  Check, Loader2, Star, Bookmark, Clock, Trash2, Play, Store 
 } from 'lucide-react';
 import { auth, db, storage } from '@/firebase/config';
 import { updateProfile } from 'firebase/auth';
@@ -45,6 +45,7 @@ export default function UserProfile({
   const { user, setUser } = useAuthStore();
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [updatingName, setUpdatingName] = useState(false);
+  const [updatingMerchant, setUpdatingMerchant] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -150,6 +151,37 @@ export default function UserProfile({
     } catch (err: any) {
       console.error('Error toggling admin role:', err);
       setErrorMsg('Failed to update role in Cloud Firestore.');
+    }
+  };
+
+  // Updates role to merchant and adds a 'pending' verification flag
+  const handleBecomeMerchant = async () => {
+    if (!user) return;
+    setUpdatingMerchant(true);
+    setSuccessMsg(null);
+    setErrorMsg(null);
+
+    try {
+      const userDocRef = doc(db, 'users', user.uid);
+      await setDoc(userDocRef, {
+        role: 'merchant',
+        verificationStatus: 'pending',
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      setUser({
+        ...user,
+        role: 'merchant',
+        verificationStatus: 'pending'
+      });
+
+      setSuccessMsg('Successfully applied! Your profile has been updated to Merchant with pending verification.');
+      setTimeout(() => setSuccessMsg(null), 3500);
+    } catch (err: any) {
+      console.error('Error applying to be merchant:', err);
+      setErrorMsg(err.message || 'Failed to update role in Firestore.');
+    } finally {
+      setUpdatingMerchant(false);
     }
   };
 
@@ -357,9 +389,22 @@ export default function UserProfile({
 
             <div>
               <h2 className="text-lg font-extrabold text-white tracking-tight">{user?.displayName || 'Subscriber'}</h2>
-              <span className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider bg-red-600/10 text-red-500 border border-red-500/20 px-2.5 py-0.5 rounded-full mt-1.5">
-                <Shield className="w-3 h-3" /> {user?.role} Access
-              </span>
+              <div className="flex flex-wrap items-center justify-center gap-2 mt-1.5">
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider bg-red-600/10 text-red-500 border border-red-500/20 px-2.5 py-0.5 rounded-full">
+                  <Shield className="w-3 h-3" /> {user?.role} Access
+                </span>
+                {user?.verificationStatus && (
+                  <span className={`inline-flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
+                    user.verificationStatus === 'verified'
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                      : user.verificationStatus === 'rejected'
+                      ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                      : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                  }`}>
+                    {user.verificationStatus}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -390,6 +435,45 @@ export default function UserProfile({
                 <span>Toggle Admin Role ({user?.role === 'admin' ? 'Set Viewer' : 'Set Admin'})</span>
               </button>
             </div>
+
+            {user?.role === 'viewer' && (
+              <div className="pt-3 border-t border-[#222]/50 space-y-2">
+                <div className="text-[10px] text-[#555] font-mono uppercase font-bold">Merchant Program</div>
+                <button
+                  type="button"
+                  onClick={handleBecomeMerchant}
+                  disabled={updatingMerchant}
+                  className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer uppercase tracking-wider font-mono shadow-md"
+                >
+                  {updatingMerchant ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Processing Application...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Store className="w-3.5 h-3.5" />
+                      <span>Become a Merchant</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {user?.role === 'merchant' && (
+              <div className="pt-3 border-t border-[#222]/50 p-3 bg-amber-950/10 border border-amber-500/20 rounded-xl space-y-1 text-left">
+                <div className="flex items-center gap-1.5 text-xs text-amber-500 font-bold font-mono">
+                  <Store className="w-3.5 h-3.5" />
+                  <span>Merchant Portal</span>
+                </div>
+                <p className="text-[10px] text-[#888] font-mono leading-relaxed">
+                  Status: <span className="text-amber-400 font-bold uppercase">{user?.verificationStatus || 'pending'}</span>
+                </p>
+                <p className="text-[9px] text-[#555] font-mono leading-normal">
+                  Your registration is logged. Our administration desk is verifying your digital physical storefront ledger details.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Edit Profile Form */}
