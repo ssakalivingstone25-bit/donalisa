@@ -96,8 +96,41 @@ export default function AdminDashboard({
         isBlueprint: true,
         status: b.status || 'published'
       }));
-      setTemplates([...rawTemplates, ...mappedBlueprints]);
+      const combined = [...rawTemplates, ...mappedBlueprints];
+      
+      // If Firestore returned no templates, or failed to read them, automatically seed with PREDEFINED_NICHES!
+      if (combined.length === 0) {
+        const fallbacks = PREDEFINED_NICHES.map(n => ({
+          id: `template_${n.key}`,
+          name: n.name,
+          description: n.description,
+          category: n.category,
+          industry: n.industry,
+          tags: n.tags,
+          themeColor: n.themeColor,
+          typography: n.typography,
+          layoutStyle: n.layoutStyle,
+          bannerUrl: n.bannerUrl,
+          logoUrl: n.logoUrl,
+          businessHours: n.businessHours,
+          location: n.location,
+          homepageBlocks: n.homepageBlocks,
+          faqs: n.faqs,
+          policies: n.policies,
+          status: 'published',
+          isFallback: true
+        }));
+        setTemplates(fallbacks);
+      } else {
+        setTemplates(combined);
+      }
     };
+
+    // Safety timeout to ensure loading spinner is ALWAYS dismissed even if Firestore listeners get blocked/error
+    const safetyTimeout = setTimeout(() => {
+      setLoading(false);
+      updateCombinedTemplates();
+    }, 1500);
 
     // 1. Templates
     const unsubscribeTemps = onSnapshot(collection(db, 'shop_templates'), (snapshot) => {
@@ -109,6 +142,8 @@ export default function AdminDashboard({
       updateCombinedTemplates();
     }, (err) => {
       console.warn("Error loading shop_templates:", err);
+      // Fallback on error
+      updateCombinedTemplates();
     });
 
     // 1b. Blueprints
@@ -121,6 +156,7 @@ export default function AdminDashboard({
       updateCombinedTemplates();
     }, (err) => {
       console.warn("Error loading template_blueprints:", err);
+      updateCombinedTemplates();
     });
 
     // 2. Applications
@@ -150,6 +186,7 @@ export default function AdminDashboard({
       setLoading(false);
     }, (err) => {
       console.warn("Error loading biz_shops:", err);
+      setLoading(false);
     });
 
     // 4. Platform Orders
@@ -164,6 +201,7 @@ export default function AdminDashboard({
     });
 
     return () => {
+      clearTimeout(safetyTimeout);
       unsubscribeTemps();
       unsubscribeBlueprints();
       unsubscribeApps();

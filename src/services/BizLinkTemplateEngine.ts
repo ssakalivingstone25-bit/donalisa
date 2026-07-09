@@ -14,6 +14,7 @@ import {
   query, 
   where 
 } from 'firebase/firestore';
+import { PREDEFINED_NICHES } from '@/components/bizlink/nicheData';
 
 export interface TemplateBlueprint {
   id: string;
@@ -186,6 +187,33 @@ export const BizLinkTemplateEngine = {
       template = await this.fetchBlueprintById(templateId);
     }
     
+    // Resolve from PREDEFINED_NICHES if Firestore gets returned nothing (useful for empty dbs or permission-denied fallbacks)
+    if (!template) {
+      const key = templateId.startsWith('template_') ? templateId.replace('template_', '') : templateId;
+      const localNiche = PREDEFINED_NICHES.find(n => n.key === key);
+      if (localNiche) {
+        template = {
+          id: templateId,
+          name: localNiche.name,
+          description: localNiche.description,
+          category: localNiche.category,
+          industry: localNiche.industry,
+          tags: localNiche.tags,
+          themeColor: localNiche.themeColor,
+          typography: localNiche.typography,
+          layoutStyle: localNiche.layoutStyle,
+          bannerUrl: localNiche.bannerUrl,
+          logoUrl: localNiche.logoUrl,
+          businessHours: localNiche.businessHours,
+          location: localNiche.location,
+          homepageBlocks: localNiche.homepageBlocks,
+          faqs: localNiche.faqs,
+          policies: localNiche.policies,
+          status: 'published'
+        };
+      }
+    }
+    
     if (!template) {
       throw new Error(`Storefront template with ID "${templateId}" does not exist in our ledger.`);
     }
@@ -250,40 +278,89 @@ export const BizLinkTemplateEngine = {
 
     // 3. Query and clone associated products
     const prodsQuery = query(collection(db, 'biz_products'), where('shopId', '==', templateId));
-    const prodsSnapshot = await getDocs(prodsQuery);
+    let prodsSnapshot: any;
+    try {
+      prodsSnapshot = await getDocs(prodsQuery);
+    } catch (e) {
+      console.warn("Failed to fetch template products, falling back to local seed:", e);
+      prodsSnapshot = { empty: true, docs: [] };
+    }
     
     let clonedProductsCount = 0;
-    for (const productDoc of prodsSnapshot.docs) {
-      const productData = productDoc.data();
-      const newProdId = 'prod_' + Math.random().toString(36).substring(2, 9);
-      
-      await setDoc(doc(db, 'biz_products', newProdId), {
-        ...productData,
-        id: newProdId,
-        shopId: shopId,
-        shopName: finalShopName,
-        createdAt: new Date().toISOString()
-      });
-      clonedProductsCount++;
+    if (prodsSnapshot && !prodsSnapshot.empty) {
+      for (const productDoc of prodsSnapshot.docs) {
+        const productData = productDoc.data();
+        const newProdId = 'prod_' + Math.random().toString(36).substring(2, 9);
+        
+        await setDoc(doc(db, 'biz_products', newProdId), {
+          ...productData,
+          id: newProdId,
+          shopId: shopId,
+          shopName: finalShopName,
+          createdAt: new Date().toISOString()
+        });
+        clonedProductsCount++;
+      }
+    } else {
+      // Fallback: Seed from predefined niche local products
+      const key = templateId.startsWith('template_') ? templateId.replace('template_', '') : templateId;
+      const localNiche = PREDEFINED_NICHES.find(n => n.key === key);
+      if (localNiche && localNiche.sampleProducts) {
+        for (const prod of localNiche.sampleProducts) {
+          const newProdId = 'prod_' + Math.random().toString(36).substring(2, 9);
+          await setDoc(doc(db, 'biz_products', newProdId), {
+            ...prod,
+            id: newProdId,
+            shopId: shopId,
+            shopName: finalShopName,
+            createdAt: new Date().toISOString()
+          });
+          clonedProductsCount++;
+        }
+      }
     }
     console.log(`[TEMPLATE ENGINE] Hydrated product ledger: successfully cloned ${clonedProductsCount} items.`);
 
     // 4. Query and clone associated reviews
     const reviewsQuery = query(collection(db, 'biz_reviews'), where('shopId', '==', templateId));
-    const reviewsSnapshot = await getDocs(reviewsQuery);
+    let reviewsSnapshot: any;
+    try {
+      reviewsSnapshot = await getDocs(reviewsQuery);
+    } catch (e) {
+      console.warn("Failed to fetch template reviews, falling back to local seed:", e);
+      reviewsSnapshot = { empty: true, docs: [] };
+    }
     
     let clonedReviewsCount = 0;
-    for (const reviewDoc of reviewsSnapshot.docs) {
-      const reviewData = reviewDoc.data();
-      const newReviewId = 'rev_' + Math.random().toString(36).substring(2, 9);
-      
-      await setDoc(doc(db, 'biz_reviews', newReviewId), {
-        ...reviewData,
-        id: newReviewId,
-        shopId: shopId,
-        createdAt: new Date().toISOString()
-      });
-      clonedReviewsCount++;
+    if (reviewsSnapshot && !reviewsSnapshot.empty) {
+      for (const reviewDoc of reviewsSnapshot.docs) {
+        const reviewData = reviewDoc.data();
+        const newReviewId = 'rev_' + Math.random().toString(36).substring(2, 9);
+        
+        await setDoc(doc(db, 'biz_reviews', newReviewId), {
+          ...reviewData,
+          id: newReviewId,
+          shopId: shopId,
+          createdAt: new Date().toISOString()
+        });
+        clonedReviewsCount++;
+      }
+    } else {
+      // Fallback: Seed from predefined niche local reviews
+      const key = templateId.startsWith('template_') ? templateId.replace('template_', '') : templateId;
+      const localNiche = PREDEFINED_NICHES.find(n => n.key === key);
+      if (localNiche && localNiche.sampleReviews) {
+        for (const rev of localNiche.sampleReviews) {
+          const newReviewId = 'rev_' + Math.random().toString(36).substring(2, 9);
+          await setDoc(doc(db, 'biz_reviews', newReviewId), {
+            ...rev,
+            id: newReviewId,
+            shopId: shopId,
+            createdAt: new Date().toISOString()
+          });
+          clonedReviewsCount++;
+        }
+      }
     }
     console.log(`[TEMPLATE ENGINE] Hydrated customer review bank: successfully cloned ${clonedReviewsCount} verified reviews.`);
 

@@ -247,8 +247,6 @@ service cloud.firestore {
     function isValidApplication(data) {
       return (
         (('applicantId' in data && data.applicantId == request.auth.uid) || ('userId' in data && data.userId == request.auth.uid)) &&
-        (('applicantName' in data && data.applicantName is string) || ('userName' in data && data.userName is string)) &&
-        (('applicantEmail' in data && data.applicantEmail is string) || ('userEmail' in data && data.userEmail is string)) &&
         data.businessName is string && data.businessName.size() > 0 && data.businessName.size() <= 200 &&
         data.businessType is string && data.businessType.size() <= 100 &&
         (data.status in ['PENDING', 'APPROVED', 'REJECTED', 'pending', 'approved', 'rejected', 'paid', 'PAID'])
@@ -264,7 +262,10 @@ service cloud.firestore {
         ('userId' in resource.data && resource.data.userId == request.auth.uid) || 
         ('applicantId' in resource.data && resource.data.applicantId == request.auth.uid)
       ));
-      allow create: if isSignedIn() && isValidId(appId) && isValidApplication(incoming()) && (incoming().status == 'PENDING' || incoming().status == 'pending');
+      allow create: if (isAdmin() && isValidId(appId) && isValidApplication(incoming())) || (
+        isSignedIn() && isValidId(appId) && isValidApplication(incoming()) && 
+        (incoming().status == 'PENDING' || incoming().status == 'pending')
+      );
       allow update: if (isAdmin() && isValidId(appId) && isValidApplication(incoming())) || (
         isSignedIn() && isValidId(appId) && 
         (('userId' in existing() && existing().userId == request.auth.uid) || ('applicantId' in existing() && existing().applicantId == request.auth.uid)) &&

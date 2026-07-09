@@ -3,6 +3,7 @@ import { X, Briefcase, ChevronRight, CheckCircle2, ShieldCheck, Loader2 } from '
 import { db } from '@/firebase/config';
 import { collection, addDoc, getDocs, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { MerchantApplication } from './MarketplaceTypes';
+import { BizLinkTemplateEngine } from '@/services/BizLinkTemplateEngine';
 
 interface MerchantApplicationModalProps {
   userId: string;
@@ -29,6 +30,49 @@ export default function MerchantApplicationModal({
   const [existingApp, setExistingApp] = useState<MerchantApplication | null>(null);
   const [loadingCheck, setLoadingCheck] = useState(true);
 
+  const isSuperAdmin = userEmail && (
+    userEmail.toLowerCase() === 'ssakalivingstone25@gmail.com' ||
+    userEmail.toLowerCase() === 'admin@donalisa.com'
+  );
+
+  const handleAdminInstantDeploy = async () => {
+    setSubmitting(true);
+    try {
+      // 1. Log a pre-approved & paid merchant application
+      const appRef = await addDoc(collection(db, 'merchant_applications'), {
+        userId,
+        userName,
+        userEmail,
+        businessName: `${userName}'s Tech Hub`,
+        businessDescription: 'Admin instant storefront configured with premium digital catalog.',
+        businessType: 'Electronics',
+        whatsappNumber: '+256 700 123 456',
+        status: 'paid',
+        paidAt: new Date().toISOString(),
+        createdAt: new Date().toISOString()
+      });
+
+      // 2. Automatically generate the live store from the tech template
+      const templateId = 'template_tech';
+      const result = await BizLinkTemplateEngine.generateStoreFromTemplate(templateId, userId, {
+        businessName: `${userName}'s Tech Hub`,
+        businessDescription: 'Admin instant storefront configured with premium digital catalog.',
+        userName,
+        userEmail,
+        whatsappNumber: '+256 700 123 456',
+        applicationId: appRef.id
+      });
+
+      alert(`Success! Your direct merchant store "${result.shopName}" has been successfully hydrated and allocated to your account!`);
+      onApplicationSuccess();
+    } catch (err: any) {
+      console.error("Admin instant deploy error:", err);
+      alert(`Error during instant deployment: ${err.message || err}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // Check if there is already an application
   useEffect(() => {
     const q = query(
@@ -43,6 +87,9 @@ export default function MerchantApplicationModal({
       } else {
         setExistingApp(null);
       }
+      setLoadingCheck(false);
+    }, (err) => {
+      console.warn("Error subscribing to merchant_applications:", err);
       setLoadingCheck(false);
     });
 
@@ -206,6 +253,35 @@ export default function MerchantApplicationModal({
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
+              {isSuperAdmin && (
+                <div className="p-4 rounded-xl bg-purple-950/25 border border-purple-500/30 space-y-3 mb-4">
+                  <div className="flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-purple-400" />
+                    <span className="text-[10px] font-mono font-bold text-purple-300 uppercase tracking-widest">Super Admin Quick-Pass</span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 leading-normal font-mono">
+                    As a digital landlord, you can bypass the tenant application and mobile money payment cycle to instantly deploy your own custom merchant store on the platform.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleAdminInstantDeploy}
+                    disabled={submitting}
+                    className="w-full py-2 bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-black font-extrabold text-xs tracking-wider uppercase rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-lg shadow-purple-500/10"
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Hydrating Direct Storefront...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>⚡ Instant Storefront Hydration</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
               <div className="space-y-1">
                 <p className="text-xs text-gray-400">
                   BizLink Uganda allows local Kampala merchants, artisans, and business owners to secure their own virtual storefront within this platform. Submit your request below:

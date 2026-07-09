@@ -64,6 +64,9 @@ export default function ShopTemplateView({
       });
       setProducts(fetched);
       setLoading(false);
+    }, (err) => {
+      console.warn("Error subscribing to biz_products for shop:", err);
+      setLoading(false);
     });
 
     const qReviews = query(collection(db, 'biz_reviews'), where('shopId', '==', shop.id));
@@ -73,6 +76,8 @@ export default function ShopTemplateView({
         fetched.push({ id: d.id, ...d.data() } as Review);
       });
       setReviews(fetched);
+    }, (err) => {
+      console.warn("Error subscribing to biz_reviews for shop:", err);
     });
 
     return () => {

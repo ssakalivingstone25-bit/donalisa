@@ -72,6 +72,9 @@ export default function BizLinkUganda({
           setMyShop(null);
         }
       }
+    }, (err) => {
+      console.warn("Error subscribing to biz_shops:", err);
+      setLoading(false);
     });
 
     return () => unsubscribeAll();

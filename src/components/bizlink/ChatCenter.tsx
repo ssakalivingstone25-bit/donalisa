@@ -136,6 +136,8 @@ export default function ChatCenter({
           updateDoc(doc(db, 'biz_messages', msg.id), { read: true }).catch(err => console.warn(err));
         });
       }
+    }, (err) => {
+      console.warn("Error subscribing to biz_messages update:", err);
     });
 
     return () => unsubscribe();

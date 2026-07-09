@@ -74,6 +74,8 @@ export default function MerchantDashboard({
         setEditShopMtn(updatedShop.mtnNumber || '');
         setEditShopAirtel(updatedShop.airtelNumber || '');
       }
+    }, (err) => {
+      console.warn("Error subscribing to biz_shops update:", err);
     });
 
     // 2. Listen to merchant products
@@ -84,6 +86,9 @@ export default function MerchantDashboard({
         fetchedProds.push({ id: d.id, ...d.data() } as Product);
       });
       setProducts(fetchedProds);
+      setLoading(false);
+    }, (err) => {
+      console.warn("Error subscribing to biz_products update:", err);
       setLoading(false);
     });
 
@@ -97,6 +102,8 @@ export default function MerchantDashboard({
       // Sort newest orders first
       fetchedOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setOrders(fetchedOrders);
+    }, (err) => {
+      console.warn("Error subscribing to biz_orders update:", err);
     });
 
     return () => {
