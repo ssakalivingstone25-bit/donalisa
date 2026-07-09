@@ -12,7 +12,7 @@ import {
 } from 'firebase/firestore';
 import { ShopTemplate, MerchantApplication, Shop, Order } from './MarketplaceTypes';
 import { PREDEFINED_NICHES, PredefinedNiche } from './nicheData';
-import { BizLinkTemplateEngine } from '@/lib/BizLinkTemplateEngine';
+import { BizLinkTemplateEngine } from '@/services/BizLinkTemplateEngine';
 
 interface AdminDashboardProps {
   currentUserId: string;
@@ -65,6 +65,7 @@ export default function AdminDashboard({
   const [formFaqs, setFormFaqs] = useState<any[]>([]);
   const [formPolicies, setFormPolicies] = useState<any>({});
   const [savingSetup, setSavingSetup] = useState(false);
+  const [savingBlueprint, setSavingBlueprint] = useState(false);
 
   // Legacy template creation modal (will be kept as fallback/basic builder)
   const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -86,13 +87,40 @@ export default function AdminDashboard({
 
   // Load Real-time Data
   useEffect(() => {
+    let rawTemplates: ShopTemplate[] = [];
+    let rawBlueprints: any[] = [];
+
+    const updateCombinedTemplates = () => {
+      const mappedBlueprints = rawBlueprints.map(b => ({
+        ...b,
+        isBlueprint: true,
+        status: b.status || 'published'
+      }));
+      setTemplates([...rawTemplates, ...mappedBlueprints]);
+    };
+
     // 1. Templates
     const unsubscribeTemps = onSnapshot(collection(db, 'shop_templates'), (snapshot) => {
       const fetched: ShopTemplate[] = [];
       snapshot.forEach((d) => {
         fetched.push({ id: d.id, ...d.data() } as ShopTemplate);
       });
-      setTemplates(fetched);
+      rawTemplates = fetched;
+      updateCombinedTemplates();
+    }, (err) => {
+      console.warn("Error loading shop_templates:", err);
+    });
+
+    // 1b. Blueprints
+    const unsubscribeBlueprints = onSnapshot(collection(db, 'template_blueprints'), (snapshot) => {
+      const fetched: any[] = [];
+      snapshot.forEach((d) => {
+        fetched.push({ id: d.id, ...d.data() });
+      });
+      rawBlueprints = fetched;
+      updateCombinedTemplates();
+    }, (err) => {
+      console.warn("Error loading template_blueprints:", err);
     });
 
     // 2. Applications
@@ -108,6 +136,8 @@ export default function AdminDashboard({
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       });
       setApplications(fetched);
+    }, (err) => {
+      console.warn("Error loading merchant_applications:", err);
     });
 
     // 3. Occupied / Created Shops
@@ -118,6 +148,8 @@ export default function AdminDashboard({
       });
       setShops(fetched);
       setLoading(false);
+    }, (err) => {
+      console.warn("Error loading biz_shops:", err);
     });
 
     // 4. Platform Orders
@@ -127,10 +159,13 @@ export default function AdminDashboard({
         fetched.push({ id: d.id, ...d.data() } as Order);
       });
       setOrders(fetched);
+    }, (err) => {
+      console.warn("Error loading biz_orders:", err);
     });
 
     return () => {
       unsubscribeTemps();
+      unsubscribeBlueprints();
       unsubscribeApps();
       unsubscribeShops();
       unsubscribeOrders();
@@ -276,9 +311,15 @@ export default function AdminDashboard({
   };
 
   const handleDeleteTemplate = async (id: string) => {
-    if (!window.confirm("Delete this reusable Shop template? This will not destroy already assigned stores.")) return;
+    const templateItem = templates.find(t => t.id === id);
+    const isBlueprint = templateItem?.isBlueprint;
+    if (!window.confirm(`Delete this reusable ${isBlueprint ? 'Blueprint' : 'Shop'} template? This will not destroy already assigned stores.`)) return;
     try {
-      await deleteDoc(doc(db, 'shop_templates', id));
+      if (isBlueprint) {
+        await deleteDoc(doc(db, 'template_blueprints', id));
+      } else {
+        await deleteDoc(doc(db, 'shop_templates', id));
+      }
     } catch (err) {
       console.error("Error deleting template:", err);
     }
@@ -469,7 +510,11 @@ export default function AdminDashboard({
         policies: formPolicies,
       };
 
-      await updateDoc(doc(db, 'shop_templates', editingTemplate.id), updatedData);
+      if (editingTemplate.isBlueprint) {
+        await updateDoc(doc(db, 'template_blueprints', editingTemplate.id), updatedData);
+      } else {
+        await updateDoc(doc(db, 'shop_templates', editingTemplate.id), updatedData);
+      }
       
       // Reset
       setShowSetupPanel(false);
@@ -478,6 +523,49 @@ export default function AdminDashboard({
       console.error("Error saving template setup:", err);
     } finally {
       setSavingSetup(false);
+    }
+  };
+
+  const handleSaveAsBlueprint = async () => {
+    if (!formName.trim() || !formDescription.trim()) {
+      alert("Name and description are required.");
+      return;
+    }
+    setSavingBlueprint(true);
+    try {
+      const blueprintData = {
+        name: formName.trim(),
+        description: formDescription.trim(),
+        style: formLayoutStyle,
+        layoutStyle: formLayoutStyle,
+        basePrice: Number(formPrice),
+        price: Number(formPrice),
+        monthlySubscription: Number(formMonthlySub),
+        oneTimePurchase: formOneTimePurchase,
+        premiumOrFree: formPremiumFree,
+        featured: formFeatured,
+        availability: formAvailability,
+        recommendedTypes: formRecommendedTypes.split(',').map(t => t.trim()).filter(Boolean),
+        themeColor: formThemeColor,
+        typography: formTypography,
+        logoUrl: formLogoUrl.trim(),
+        bannerUrl: formBannerUrl.trim(),
+        status: formStatus,
+        homepageBlocks: formBlocks,
+        faqs: formFaqs,
+        policies: formPolicies,
+      };
+
+      const id = await BizLinkTemplateEngine.saveTemplateBlueprint(blueprintData);
+      alert(`Success! Configuration saved to the custom 'template_blueprints' collection as blueprint "${formName}" with ID: ${id}`);
+      
+      setShowSetupPanel(false);
+      setEditingTemplate(null);
+    } catch (err: any) {
+      console.error("Error saving template blueprint:", err);
+      alert(`Error saving to template_blueprints: ${err.message || err}`);
+    } finally {
+      setSavingBlueprint(false);
     }
   };
 
@@ -1661,23 +1749,31 @@ export default function AdminDashboard({
               </div>
 
               {/* SAVE ACTION */}
-              <div className="pt-4 border-t border-[#1a1a24] flex gap-3">
+              <div className="pt-4 border-t border-[#1a1a24] flex gap-3 flex-wrap">
                 <button
                   type="button"
                   onClick={() => {
                     setShowSetupPanel(false);
                     setEditingTemplate(null);
                   }}
-                  className="flex-1 py-3 bg-[#13131c] hover:bg-[#1a1a26] text-gray-400 font-mono text-xs uppercase font-black rounded-xl border border-gray-800 transition-all cursor-pointer"
+                  className="flex-1 py-3 bg-[#13131c] hover:bg-[#1a1a26] text-gray-400 font-mono text-xs uppercase font-black rounded-xl border border-gray-800 transition-all cursor-pointer min-w-[120px]"
                 >
                   Discard Overrides
                 </button>
                 <button
                   type="submit"
-                  disabled={savingSetup}
-                  className="flex-1 py-3 bg-purple-600 hover:bg-purple-500 text-white font-mono text-xs uppercase font-black rounded-xl transition-all shadow-xl shadow-purple-500/15 cursor-pointer disabled:opacity-50"
+                  disabled={savingSetup || savingBlueprint}
+                  className="flex-1 py-3 bg-purple-600 hover:bg-purple-500 text-white font-mono text-xs uppercase font-black rounded-xl transition-all shadow-xl shadow-purple-500/15 cursor-pointer disabled:opacity-50 min-w-[120px]"
                 >
                   {savingSetup ? 'Committing Blueprint...' : '💾 Save Template Blueprint'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAsBlueprint}
+                  disabled={savingSetup || savingBlueprint}
+                  className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-mono text-xs uppercase font-black rounded-xl transition-all shadow-xl shadow-cyan-500/15 cursor-pointer disabled:opacity-50 min-w-[120px]"
+                >
+                  {savingBlueprint ? 'Saving Custom Blueprint...' : '💎 Save to template_blueprints'}
                 </button>
               </div>
             </form>

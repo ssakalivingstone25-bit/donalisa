@@ -47,7 +47,10 @@ export default function BizLinkUganda({
   const [myShop, setMyShop] = useState<Shop | null>(null);
 
   // Identify if user is Super Admin
-  const isSuperAdmin = currentUserEmail === 'ssakalivingstone25@gmail.com';
+  const isSuperAdmin = currentUserEmail && (
+    currentUserEmail.toLowerCase() === 'ssakalivingstone25@gmail.com' ||
+    currentUserEmail.toLowerCase() === 'admin@donalisa.com'
+  );
 
   // 1. Fetch live shops and user's owned shop
   useEffect(() => {

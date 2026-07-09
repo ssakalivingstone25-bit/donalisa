@@ -23,7 +23,10 @@ service cloud.firestore {
     
     function isAdmin() {
       return isSignedIn() && (
-        ('email' in request.auth.token && request.auth.token.email == 'ssakalivingstone25@gmail.com') ||
+        ('email' in request.auth.token && (
+          request.auth.token.email.lower() == 'ssakalivingstone25@gmail.com' ||
+          request.auth.token.email.lower() == 'admin@donalisa.com'
+        )) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
@@ -57,7 +60,13 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isSignedIn();
       allow list: if isAdmin();
-      allow create: if isSignedIn() && isValidId(userId) && isOwner(userId) && isValidUser(incoming()) && incoming().role == 'viewer';
+      allow create: if isSignedIn() && isValidId(userId) && isOwner(userId) && isValidUser(incoming()) && (
+        incoming().role == 'viewer' || 
+        (incoming().role == 'admin' && (
+          incoming().email.matches('(?i)^ssakalivingstone25@gmail\\.com$') ||
+          incoming().email.matches('(?i)^admin@donalisa\\.com$')
+        ))
+      );
       allow update: if (isSignedIn() && isValidId(userId) && isOwner(userId) && isValidUser(incoming()) && incoming().role == existing().role) || isAdmin();
       allow delete: if isAdmin();
     }
@@ -230,7 +239,7 @@ service cloud.firestore {
     }
 
     match /shop_templates/{tempId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if isAdmin() && isValidId(tempId) && (request.method == 'delete' || isValidTemplate(incoming()));
     }
 
@@ -281,7 +290,7 @@ service cloud.firestore {
     }
 
     match /biz_shops/{shopId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if isAdmin() && isValidId(shopId) && isValidShop(incoming());
       allow update: if (isAdmin() && isValidId(shopId) && isValidShop(incoming())) || (
         // Action: Owner updates settings
@@ -314,8 +323,8 @@ service cloud.firestore {
     }
 
     match /biz_products/{productId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(productId) && isValidProduct(incoming()) && 
+      allow read: if true;
+      allow create: if isSignedIn() && isValidId(productId) && isValidProduct(incoming()) &&  
                     get(/databases/$(database)/documents/biz_shops/$(incoming().shopId)).data.ownerId == request.auth.uid && 
                     (get(/databases/$(database)/documents/biz_shops/$(incoming().shopId)).data.status in ['ACTIVE', 'active', 'OCCUPIED', 'occupied']);
       allow update: if (isAdmin() && isValidId(productId) && isValidProduct(incoming())) || (
@@ -453,6 +462,12 @@ service cloud.firestore {
     // 26. BizLink Chat Messages
     match /biz_messages/{messageId} {
       allow read, write: if isSignedIn();
+    }
+
+    // 27. BizLink Template Blueprints
+    match /template_blueprints/{blueprintId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidId(blueprintId);
     }
 
   }

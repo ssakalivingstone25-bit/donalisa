@@ -887,6 +887,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
 
   // 1. Sync movies from Firestore in real-time
   useEffect(() => {
+    if (!user) return;
     setLoading(true);
     let unsubscribe: () => void = () => {};
 
@@ -935,7 +936,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
     }
 
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   // Rehydrate local custom movies/songs with fresh blob URLs from IndexedDB on catalog refresh
   useEffect(() => {
@@ -1118,6 +1119,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
 
   // 6. Sync ALL ratings for on-the-fly average star sorting
   useEffect(() => {
+    if (!user) return;
     const ratingsRef = collection(db, 'ratings');
 
     const unsubscribe = onSnapshot(ratingsRef, (snapshot) => {
@@ -1140,7 +1142,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   // 7. Initialize Real-time Notification System via Zustand store
   useEffect(() => {
@@ -1157,6 +1159,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
 
   // 8. Sync ACTIVE VIEWERS in Realtime from Firestore presence collection
   useEffect(() => {
+    if (!user) return;
     const activeViewersRef = collection(db, 'active_viewers');
 
     const unsubscribe = onSnapshot(activeViewersRef, (snapshot) => {
@@ -1176,7 +1179,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   // 8.1. Sync COMMENTS for detailed movie in Realtime from Firestore
   useEffect(() => {
@@ -1207,7 +1210,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
 
   // 8.2. Sync LIKES for comments in Realtime from Firestore
   useEffect(() => {
-    if (!detailedMovie) {
+    if (!user || !detailedMovie) {
       setCommentLikes({});
       return;
     }
@@ -1233,7 +1236,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
     });
 
     return () => unsubscribe();
-  }, [detailedMovie]);
+  }, [user, detailedMovie]);
 
   // 8.3. Sync ALL comments for Admin Moderation Panel in Realtime
   useEffect(() => {
