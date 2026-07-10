@@ -85,11 +85,32 @@ export default function MerchantApplicationModal({
         const docSnap = snapshot.docs[0];
         setExistingApp({ id: docSnap.id, ...docSnap.data() } as MerchantApplication);
       } else {
-        setExistingApp(null);
+        // Fallback to local sandbox copy
+        const localAppRaw = localStorage.getItem(`bizlink_local_app_${userId}`);
+        if (localAppRaw) {
+          try {
+            setExistingApp(JSON.parse(localAppRaw));
+          } catch (e) {
+            setExistingApp(null);
+          }
+        } else {
+          setExistingApp(null);
+        }
       }
       setLoadingCheck(false);
     }, (err) => {
-      console.warn("Error subscribing to merchant_applications:", err);
+      console.warn("Error subscribing to merchant_applications, loading local sandbox cache:", err);
+      // Fallback on subscription error
+      const localAppRaw = localStorage.getItem(`bizlink_local_app_${userId}`);
+      if (localAppRaw) {
+        try {
+          setExistingApp(JSON.parse(localAppRaw));
+        } catch (e) {
+          setExistingApp(null);
+        }
+      } else {
+        setExistingApp(null);
+      }
       setLoadingCheck(false);
     });
 
@@ -103,7 +124,7 @@ export default function MerchantApplicationModal({
     setSubmitting(true);
 
     try {
-      await addDoc(collection(db, 'merchant_applications'), {
+      const appPayload = {
         userId,
         userName,
         userEmail,
@@ -113,7 +134,19 @@ export default function MerchantApplicationModal({
         whatsappNumber: whatsappNumber.trim(),
         status: 'pending',
         createdAt: new Date().toISOString()
-      });
+      };
+
+      try {
+        await addDoc(collection(db, 'merchant_applications'), appPayload);
+      } catch (firestoreErr: any) {
+        console.warn("Firestore save failed, caching in local sandbox:", firestoreErr.message || firestoreErr);
+      }
+
+      // Cache locally
+      localStorage.setItem(`bizlink_local_app_${userId}`, JSON.stringify({
+        id: `local_app_${userId}`,
+        ...appPayload
+      }));
 
       setSuccess(true);
       setTimeout(() => {

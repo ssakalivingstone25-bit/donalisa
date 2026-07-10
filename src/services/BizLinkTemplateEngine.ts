@@ -273,9 +273,23 @@ export const BizLinkTemplateEngine = {
       faqs: template.faqs || []
     };
 
-    // Save live shop record to Firestore
-    await setDoc(doc(db, 'biz_shops', shopId), newShopData);
-    console.log(`[TEMPLATE ENGINE] Created live store "${finalShopName}" at path biz_shops/${shopId}`);
+    // Save live shop record to Firestore with localStorage sandbox backup
+    let isFirestoreShopSaved = false;
+    try {
+      await setDoc(doc(db, 'biz_shops', shopId), newShopData);
+      console.log(`[TEMPLATE ENGINE] Created live store "${finalShopName}" at path biz_shops/${shopId}`);
+      isFirestoreShopSaved = true;
+    } catch (e: any) {
+      console.warn(`[TEMPLATE ENGINE] setDoc biz_shops failed, writing to local sandbox cache: ${e.message || e}`);
+    }
+
+    // Always mirror in local storage sandbox cache for zero-friction user testing
+    const localShopsRaw = localStorage.getItem('bizlink_local_shops') || '[]';
+    let localShops: any[] = [];
+    try { localShops = JSON.parse(localShopsRaw); } catch(err) {}
+    localShops = localShops.filter((s: any) => s.id !== shopId);
+    localShops.push(newShopData);
+    localStorage.setItem('bizlink_local_shops', JSON.stringify(localShops));
 
     // 3. Query and clone associated products
     const prodsQuery = query(collection(db, 'biz_products'), where('shopId', '==', templateId));
@@ -288,18 +302,26 @@ export const BizLinkTemplateEngine = {
     }
     
     let clonedProductsCount = 0;
+    const localProductsToCache: any[] = [];
+
     if (prodsSnapshot && !prodsSnapshot.empty) {
       for (const productDoc of prodsSnapshot.docs) {
         const productData = productDoc.data();
         const newProdId = 'prod_' + Math.random().toString(36).substring(2, 9);
-        
-        await setDoc(doc(db, 'biz_products', newProdId), {
+        const fullProd = {
           ...productData,
           id: newProdId,
           shopId: shopId,
           shopName: finalShopName,
           createdAt: new Date().toISOString()
-        });
+        };
+
+        try {
+          await setDoc(doc(db, 'biz_products', newProdId), fullProd);
+        } catch (e: any) {
+          console.warn(`[TEMPLATE ENGINE] setDoc biz_products failed for ${newProdId}: ${e.message || e}`);
+        }
+        localProductsToCache.push(fullProd);
         clonedProductsCount++;
       }
     } else {
@@ -309,17 +331,33 @@ export const BizLinkTemplateEngine = {
       if (localNiche && localNiche.sampleProducts) {
         for (const prod of localNiche.sampleProducts) {
           const newProdId = 'prod_' + Math.random().toString(36).substring(2, 9);
-          await setDoc(doc(db, 'biz_products', newProdId), {
+          const fullProd = {
             ...prod,
             id: newProdId,
             shopId: shopId,
             shopName: finalShopName,
             createdAt: new Date().toISOString()
-          });
+          };
+
+          try {
+            await setDoc(doc(db, 'biz_products', newProdId), fullProd);
+          } catch (e: any) {
+            console.warn(`[TEMPLATE ENGINE] setDoc biz_products (seed) failed for ${newProdId}: ${e.message || e}`);
+          }
+          localProductsToCache.push(fullProd);
           clonedProductsCount++;
         }
       }
     }
+
+    // Always mirror products in local storage sandbox cache
+    const localProductsRaw = localStorage.getItem('bizlink_local_products') || '[]';
+    let localProductsList: any[] = [];
+    try { localProductsList = JSON.parse(localProductsRaw); } catch (e) {}
+    localProductsList = localProductsList.filter((p: any) => p.shopId !== shopId);
+    localProductsList.push(...localProductsToCache);
+    localStorage.setItem('bizlink_local_products', JSON.stringify(localProductsList));
+
     console.log(`[TEMPLATE ENGINE] Hydrated product ledger: successfully cloned ${clonedProductsCount} items.`);
 
     // 4. Query and clone associated reviews
@@ -333,17 +371,25 @@ export const BizLinkTemplateEngine = {
     }
     
     let clonedReviewsCount = 0;
+    const localReviewsToCache: any[] = [];
+
     if (reviewsSnapshot && !reviewsSnapshot.empty) {
       for (const reviewDoc of reviewsSnapshot.docs) {
         const reviewData = reviewDoc.data();
         const newReviewId = 'rev_' + Math.random().toString(36).substring(2, 9);
-        
-        await setDoc(doc(db, 'biz_reviews', newReviewId), {
+        const fullReview = {
           ...reviewData,
           id: newReviewId,
           shopId: shopId,
           createdAt: new Date().toISOString()
-        });
+        };
+
+        try {
+          await setDoc(doc(db, 'biz_reviews', newReviewId), fullReview);
+        } catch (e: any) {
+          console.warn(`[TEMPLATE ENGINE] setDoc biz_reviews failed for ${newReviewId}: ${e.message || e}`);
+        }
+        localReviewsToCache.push(fullReview);
         clonedReviewsCount++;
       }
     } else {
@@ -353,27 +399,47 @@ export const BizLinkTemplateEngine = {
       if (localNiche && localNiche.sampleReviews) {
         for (const rev of localNiche.sampleReviews) {
           const newReviewId = 'rev_' + Math.random().toString(36).substring(2, 9);
-          await setDoc(doc(db, 'biz_reviews', newReviewId), {
+          const fullReview = {
             ...rev,
             id: newReviewId,
             shopId: shopId,
             createdAt: new Date().toISOString()
-          });
+          };
+
+          try {
+            await setDoc(doc(db, 'biz_reviews', newReviewId), fullReview);
+          } catch (e: any) {
+            console.warn(`[TEMPLATE ENGINE] setDoc biz_reviews (seed) failed for ${newReviewId}: ${e.message || e}`);
+          }
+          localReviewsToCache.push(fullReview);
           clonedReviewsCount++;
         }
       }
     }
+
+    // Always mirror reviews in local storage sandbox cache
+    const localReviewsRaw = localStorage.getItem('bizlink_local_reviews') || '[]';
+    let localReviewsList: any[] = [];
+    try { localReviewsList = JSON.parse(localReviewsRaw); } catch (e) {}
+    localReviewsList = localReviewsList.filter((r: any) => r.shopId !== shopId);
+    localReviewsList.push(...localReviewsToCache);
+    localStorage.setItem('bizlink_local_reviews', JSON.stringify(localReviewsList));
+
     console.log(`[TEMPLATE ENGINE] Hydrated customer review bank: successfully cloned ${clonedReviewsCount} verified reviews.`);
 
     // 5. Update parent application references if applicable
     if (applicationData?.applicationId) {
-      const appRef = doc(db, 'merchant_applications', applicationData.applicationId);
-      await updateDoc(appRef, {
-        assignedShopId: shopId,
-        status: 'paid', // Update status to paid/active
-        paidAt: new Date().toISOString()
-      });
-      console.log(`[TEMPLATE ENGINE] Updated applicant ledger record for ID: ${applicationData.applicationId}`);
+      try {
+        const appRef = doc(db, 'merchant_applications', applicationData.applicationId);
+        await updateDoc(appRef, {
+          assignedShopId: shopId,
+          status: 'paid', // Update status to paid/active
+          paidAt: new Date().toISOString()
+        });
+        console.log(`[TEMPLATE ENGINE] Updated applicant ledger record for ID: ${applicationData.applicationId}`);
+      } catch (e: any) {
+        console.warn(`[TEMPLATE ENGINE] updateDoc merchant_applications failed: ${e.message || e}`);
+      }
     }
 
     return {

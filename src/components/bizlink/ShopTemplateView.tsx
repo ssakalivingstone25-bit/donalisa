@@ -63,10 +63,37 @@ export default function ShopTemplateView({
       snapshot.forEach((d) => {
         fetched.push({ id: d.id, ...d.data() } as Product);
       });
+
+      // Load and merge local fallback products
+      const localProdsRaw = localStorage.getItem('bizlink_local_products');
+      if (localProdsRaw) {
+        try {
+          const localProds = JSON.parse(localProdsRaw) as Product[];
+          localProds.forEach(p => {
+            if (p.shopId === shop.id && !fetched.some(fp => fp.id === p.id)) {
+              fetched.push(p);
+            }
+          });
+        } catch (e) {}
+      }
+
       setProducts(fetched);
       setLoading(false);
     }, (err) => {
-      console.warn("Error subscribing to biz_products for shop:", err);
+      console.warn("Error subscribing to biz_products for shop, loading local fallback catalog:", err);
+      const fetched: Product[] = [];
+      const localProdsRaw = localStorage.getItem('bizlink_local_products');
+      if (localProdsRaw) {
+        try {
+          const localProds = JSON.parse(localProdsRaw) as Product[];
+          localProds.forEach(p => {
+            if (p.shopId === shop.id) {
+              fetched.push(p);
+            }
+          });
+        } catch (e) {}
+      }
+      setProducts(fetched);
       setLoading(false);
     });
 
@@ -76,9 +103,36 @@ export default function ShopTemplateView({
       snapshot.forEach((d) => {
         fetched.push({ id: d.id, ...d.data() } as Review);
       });
+
+      // Load and merge local reviews
+      const localReviewsRaw = localStorage.getItem('bizlink_local_reviews');
+      if (localReviewsRaw) {
+        try {
+          const localReviews = JSON.parse(localReviewsRaw) as Review[];
+          localReviews.forEach(r => {
+            if (r.shopId === shop.id && !fetched.some(fr => fr.id === r.id)) {
+              fetched.push(r);
+            }
+          });
+        } catch (e) {}
+      }
+
       setReviews(fetched);
     }, (err) => {
-      console.warn("Error subscribing to biz_reviews for shop:", err);
+      console.warn("Error subscribing to biz_reviews for shop, loading local fallback reviews:", err);
+      const fetched: Review[] = [];
+      const localReviewsRaw = localStorage.getItem('bizlink_local_reviews');
+      if (localReviewsRaw) {
+        try {
+          const localReviews = JSON.parse(localReviewsRaw) as Review[];
+          localReviews.forEach(r => {
+            if (r.shopId === shop.id) {
+              fetched.push(r);
+            }
+          });
+        } catch (e) {}
+      }
+      setReviews(fetched);
     });
 
     return () => {

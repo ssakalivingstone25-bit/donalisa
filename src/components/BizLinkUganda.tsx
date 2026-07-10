@@ -63,6 +63,22 @@ export default function BizLinkUganda({
       snapshot.forEach((doc) => {
         fetched.push({ id: doc.id, ...doc.data() } as Shop);
       });
+
+      // Load and merge local fallback shops for robust sandbox experience
+      const localShopsRaw = localStorage.getItem('bizlink_local_shops');
+      if (localShopsRaw) {
+        try {
+          const localShops = JSON.parse(localShopsRaw) as Shop[];
+          localShops.forEach(localShop => {
+            if (!fetched.some(s => s.id === localShop.id)) {
+              fetched.push(localShop);
+            }
+          });
+        } catch (e) {
+          console.warn("Error parsing local shops:", e);
+        }
+      }
+
       setAllShops(fetched);
       setLoading(false);
 
@@ -76,8 +92,33 @@ export default function BizLinkUganda({
         }
       }
     }, (err) => {
-      console.warn("Error subscribing to biz_shops:", err);
+      console.warn("Error subscribing to biz_shops, falling back to local sandbox directory:", err);
+      
+      const fetched: Shop[] = [];
+      const localShopsRaw = localStorage.getItem('bizlink_local_shops');
+      if (localShopsRaw) {
+        try {
+          const localShops = JSON.parse(localShopsRaw) as Shop[];
+          localShops.forEach(localShop => {
+            if (!fetched.some(s => s.id === localShop.id)) {
+              fetched.push(localShop);
+            }
+          });
+        } catch (e) {
+          console.warn("Error parsing local shops:", e);
+        }
+      }
+      setAllShops(fetched);
       setLoading(false);
+
+      if (currentUserId && currentUserId !== 'anonymous') {
+        const owned = fetched.find(s => s.ownerId === currentUserId);
+        if (owned) {
+          setMyShop(owned);
+        } else {
+          setMyShop(null);
+        }
+      }
     });
 
     return () => unsubscribeAll();

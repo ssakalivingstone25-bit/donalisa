@@ -95,10 +95,37 @@ export default function MerchantDashboard({
       snapshot.forEach((d) => {
         fetchedProds.push({ id: d.id, ...d.data() } as Product);
       });
+
+      // Load and merge local fallback products
+      const localProdsRaw = localStorage.getItem('bizlink_local_products');
+      if (localProdsRaw) {
+        try {
+          const localProds = JSON.parse(localProdsRaw) as Product[];
+          localProds.forEach(p => {
+            if (p.shopId === shop.id && !fetchedProds.some(fp => fp.id === p.id)) {
+              fetchedProds.push(p);
+            }
+          });
+        } catch (e) {}
+      }
+
       setProducts(fetchedProds);
       setLoading(false);
     }, (err) => {
-      console.warn("Error subscribing to biz_products update:", err);
+      console.warn("Error subscribing to biz_products update, loading local sandbox catalog:", err);
+      const fetchedProds: Product[] = [];
+      const localProdsRaw = localStorage.getItem('bizlink_local_products');
+      if (localProdsRaw) {
+        try {
+          const localProds = JSON.parse(localProdsRaw) as Product[];
+          localProds.forEach(p => {
+            if (p.shopId === shop.id) {
+              fetchedProds.push(p);
+            }
+          });
+        } catch (e) {}
+      }
+      setProducts(fetchedProds);
       setLoading(false);
     });
 
