@@ -239,6 +239,7 @@ export const BizLinkTemplateEngine = {
       description: finalDescription,
       bannerUrl: template.bannerUrl || 'https://images.unsplash.com/photo-1531297484001-80022131f5a1',
       logoUrl: template.logoUrl || 'https://images.unsplash.com/photo-1542496658-e33a6d0d50f6',
+      category: template.category || 'Retail',
       verified: true,
       rating: 5.0,
       followerCount: 0,

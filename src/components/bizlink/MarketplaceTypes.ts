@@ -12,6 +12,7 @@ export interface ShopTemplate {
   themeColor: string;
   businessHours: string;
   location: string;
+  category?: string;
 }
 
 export interface Shop {
@@ -25,6 +26,7 @@ export interface Shop {
   description: string;
   bannerUrl: string;
   logoUrl: string;
+  category?: string;
   verified: boolean;
   rating: number;
   followerCount: number;

@@ -42,6 +42,13 @@ export default function AdminDashboard({
   const [showSetupPanel, setShowSetupPanel] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
 
+  // Selective Sync / Distribution Modal States
+  const [syncTemplate, setSyncTemplate] = useState<any | null>(null);
+  const [syncType, setSyncType] = useState<'marketplace' | 'user'>('marketplace');
+  const [syncShopName, setSyncShopName] = useState('');
+  const [syncSelectedAppId, setSyncSelectedAppId] = useState('');
+  const [syncProcessing, setSyncProcessing] = useState(false);
+
   // Setup panel form fields
   const [formName, setFormName] = useState('');
   const [formCategory, setFormCategory] = useState('');
@@ -356,6 +363,64 @@ export default function AdminDashboard({
     } catch (err: any) {
       console.error("Error toggling template publish:", err);
       alert(`Error toggling template publish: ${err.message || err}`);
+    }
+  };
+
+  const handleOpenSyncModal = (template: any) => {
+    setSyncTemplate(template);
+    setSyncShopName(template.name ? `${template.name} Outlet` : 'New Premium Store');
+    setSyncType('marketplace');
+    const paidAppsNoShop = applications.filter(app => app.status === 'paid' && !app.assignedShopId);
+    if (paidAppsNoShop.length > 0) {
+      setSyncSelectedAppId(paidAppsNoShop[0].id);
+    } else {
+      setSyncSelectedAppId('');
+    }
+  };
+
+  const handleExecuteSync = async () => {
+    if (!syncTemplate) return;
+    setSyncProcessing(true);
+    try {
+      if (syncType === 'marketplace') {
+        const result = await BizLinkTemplateEngine.generateStoreFromTemplate(syncTemplate.id, `admin_demo_${syncTemplate.id}`, {
+          businessName: syncShopName.trim(),
+          businessDescription: syncTemplate.description || 'Verified live shop on Kampala Digital Arcade',
+          userName: 'Kampala Arcade Landlord',
+          userEmail: 'landlord@bizlink.co.ug',
+          whatsappNumber: '+256700000000'
+        });
+
+        await updateDoc(doc(db, 'biz_shops', result.shopId), {
+          category: syncTemplate.category || 'Retail'
+        });
+
+        alert(`Success! "${syncShopName}" is now live on the BizLink marketplace directory as an already published shop under "${syncTemplate.category || 'Retail'}"!`);
+      } else {
+        const selectedApp = applications.find(app => app.id === syncSelectedAppId);
+        if (!selectedApp) {
+          alert('Please select a valid merchant application.');
+          setSyncProcessing(false);
+          return;
+        }
+
+        const result = await BizLinkTemplateEngine.generateStoreFromTemplate(syncTemplate.id, selectedApp.userId, {
+          businessName: selectedApp.businessName || syncTemplate.name,
+          businessDescription: selectedApp.businessDescription || syncTemplate.description,
+          userName: selectedApp.userName,
+          userEmail: selectedApp.userEmail,
+          whatsappNumber: selectedApp.whatsappNumber,
+          applicationId: selectedApp.id
+        });
+
+        alert(`Success! Store of "${result.shopName}" is now fully initialized & synced to ${selectedApp.userName}'s active merchant dashboard! (ID: "${result.shopId}")`);
+      }
+      setSyncTemplate(null);
+    } catch (err: any) {
+      console.error("Error executing selective sync:", err);
+      alert(`Error distributing template: ${err.message || err}`);
+    } finally {
+      setSyncProcessing(false);
     }
   };
 
@@ -1036,15 +1101,11 @@ export default function AdminDashboard({
                               </div>
                               <div className="flex items-center gap-1.5">
                                 <button
-                                  onClick={() => handleToggleTemplatePublish(temp.id, temp.status)}
-                                  className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition-all cursor-pointer text-[9px] border font-black uppercase ${
-                                    temp.status === 'published'
-                                      ? 'bg-emerald-950/20 border-emerald-900 text-emerald-400 hover:bg-emerald-900/20'
-                                      : 'bg-amber-950/20 border-amber-900 text-amber-400 hover:bg-amber-900/20'
-                                  }`}
-                                  title="Toggle visibility on user dashboard"
+                                  onClick={() => handleOpenSyncModal(temp)}
+                                  className="px-2.5 py-1.5 bg-[#12121a] border border-gray-800 hover:border-red-500/30 text-red-500 hover:text-white rounded-lg flex items-center gap-1 transition-all cursor-pointer text-[9px] font-black uppercase"
+                                  title="Push, sync, or publish this template to dashboards or marketplace"
                                 >
-                                  <span>{temp.status === 'published' ? '🟢 Published' : '🟡 Draft (Publish)'}</span>
+                                  <span>🚀 Sync / Publish</span>
                                 </button>
                                 <button
                                   onClick={() => handleOpenEditSetup(temp)}
@@ -1743,6 +1804,165 @@ export default function AdminDashboard({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* TEMPLATE DISTRIBUTION & SYNC ARCHITECT MODAL */}
+      {syncTemplate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+          <div className="bg-[#0b0b10] border border-[#1a1a24] rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl relative flex flex-col font-mono text-xs text-gray-300">
+            <div className="p-5 border-b border-[#1a1a24] flex items-center justify-between bg-[#0e0e14]">
+              <div className="flex items-center gap-2">
+                <Globe className="w-5 h-5 text-red-500" />
+                <div>
+                  <h3 className="text-xs font-black text-white tracking-widest uppercase">Template Distribution & Sync</h3>
+                  <p className="text-[9px] text-gray-500">SELECTIVE SYNC MODULE FOR "{syncTemplate.name}"</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSyncTemplate(null)}
+                className="p-1.5 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+              {/* CURRENT BLUEPRINT STATUS TOGGLE */}
+              <div className="p-3 bg-[#0d0d12] border border-gray-800 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] text-gray-400 uppercase font-bold">Template Blueprint Visibility</span>
+                  <span className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider ${
+                    syncTemplate.status === 'published' ? 'bg-emerald-950 text-emerald-400 border border-emerald-900' : 'bg-amber-950 text-amber-400 border border-amber-900'
+                  }`}>
+                    {syncTemplate.status === 'published' ? '🟢 Published / Active' : '🟡 Draft / Hidden'}
+                  </span>
+                </div>
+                <p className="text-[9px] text-gray-500 leading-normal">
+                  Controls whether onboarding merchants can browse and select this premium storefront layout in their application flow.
+                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const nextStatus = syncTemplate.status === 'published' ? 'draft' : 'published';
+                    await handleToggleTemplatePublish(syncTemplate.id, syncTemplate.status);
+                    setSyncTemplate({ ...syncTemplate, status: nextStatus });
+                  }}
+                  className="w-full py-1.5 bg-[#12121a] hover:bg-purple-950/20 border border-gray-800 hover:border-purple-500/40 text-[9px] font-bold uppercase rounded-lg transition-all"
+                >
+                  🔄 Toggle Blueprint visibility
+                </button>
+              </div>
+
+              {/* DISTRIBUTION TARGET MODE */}
+              <div className="space-y-2">
+                <label className="text-[10px] text-gray-400 block uppercase font-bold">Distribution Sync Destination</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSyncType('marketplace')}
+                    className={`py-2.5 px-3 rounded-xl border font-bold uppercase text-[10px] text-center transition-all ${
+                      syncType === 'marketplace'
+                        ? 'bg-red-600/10 border-red-500 text-red-500'
+                        : 'bg-[#12121a] border-gray-800 text-gray-400 hover:bg-gray-800'
+                    }`}
+                  >
+                    🏪 BizLink Marketplace (Demo Shop)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSyncType('user')}
+                    className={`py-2.5 px-3 rounded-xl border font-bold uppercase text-[10px] text-center transition-all ${
+                      syncType === 'user'
+                        ? 'bg-purple-600/10 border-purple-500 text-purple-400'
+                        : 'bg-[#12121a] border-gray-800 text-gray-400 hover:bg-gray-800'
+                    }`}
+                  >
+                    👤 Choose User Dashboard
+                  </button>
+                </div>
+              </div>
+
+              {/* TARGET SPECIFICS */}
+              {syncType === 'marketplace' ? (
+                <div className="space-y-3 p-4 bg-[#09090d] border border-gray-900 rounded-xl">
+                  <span className="text-[9px] font-bold text-red-400 uppercase tracking-widest block">Option A: Global Showcase</span>
+                  <p className="text-[10px] text-gray-500 leading-normal">
+                    Clones this template as a live, fully-occupied storefront directory on the main marketplace immediately. It will appear under the corresponding business category: 
+                    <strong className="text-white ml-1">"{syncTemplate.category || 'Retail'}"</strong>.
+                  </p>
+                  
+                  <div className="space-y-1">
+                    <label className="text-[9px] text-gray-400 block uppercase font-bold">Marketplace Store Name</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Elite Tech Outlet"
+                      value={syncShopName}
+                      onChange={(e) => setSyncShopName(e.target.value)}
+                      className="w-full px-3 py-2 bg-[#12121a] border border-gray-800 focus:border-red-500 focus:outline-none rounded-xl text-white"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3 p-4 bg-[#09090d] border border-gray-900 rounded-xl">
+                  <span className="text-[9px] font-bold text-purple-400 uppercase tracking-widest block">Option B: Handover To Purchased User</span>
+                  <p className="text-[10px] text-gray-500 leading-normal">
+                    Syncs and establishes this layout directly into the merchant dashboard of a chosen user who purchased this layout template.
+                  </p>
+
+                  <div className="space-y-1">
+                    <label className="text-[9px] text-gray-400 block uppercase font-bold">Select Verified Merchant</label>
+                    {applications.filter(app => app.status === 'paid' && !app.assignedShopId).length === 0 ? (
+                      <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl text-amber-500 text-[10px] leading-relaxed">
+                        ⚠️ No pending verified setup-fee paid merchants. Approved merchants who cleared their setup fee will show up here. You can still select any application below to initialize a shop for them.
+                      </div>
+                    ) : null}
+
+                    <select
+                      value={syncSelectedAppId}
+                      onChange={(e) => setSyncSelectedAppId(e.target.value)}
+                      className="w-full px-3 py-2 bg-[#12121a] border border-gray-800 focus:border-purple-500 focus:outline-none rounded-xl text-white font-mono"
+                    >
+                      <option value="">-- Choose Merchant Application --</option>
+                      {applications.map((app) => (
+                        <option key={app.id} value={app.id}>
+                          {app.businessName} ({app.userName} - {app.status.toUpperCase()}) {app.assignedShopId ? '✓ Synced' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* ACTION FOOTER */}
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSyncTemplate(null)}
+                  className="flex-1 py-2.5 bg-[#13131c] hover:bg-[#1a1a26] text-gray-400 font-mono text-xs uppercase font-black rounded-xl border border-gray-800 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteSync}
+                  disabled={syncProcessing || (syncType === 'user' && !syncSelectedAppId) || (syncType === 'marketplace' && !syncShopName.trim())}
+                  className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-mono text-xs uppercase font-black rounded-xl transition-all shadow-xl shadow-red-500/15 cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  {syncProcessing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Syncing Ledger...</span>
+                    </>
+                  ) : (
+                    <span>⚡ One-Click Sync & Publish</span>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

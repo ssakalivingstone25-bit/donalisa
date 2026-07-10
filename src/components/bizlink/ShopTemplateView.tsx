@@ -7,6 +7,7 @@ import {
 import { Shop, Product, Order, ProductVariant, Review } from './MarketplaceTypes';
 import { db } from '@/firebase/config';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, doc } from 'firebase/firestore';
+import RealtimeShopMap from './RealtimeShopMap';
 
 interface ShopTemplateViewProps {
   shop: Shop;
@@ -495,6 +496,13 @@ export default function ShopTemplateView({
               </div>
             </div>
           </div>
+
+          {/* Real-time Google Maps & Live Operational Visit Tracking */}
+          <RealtimeShopMap 
+            shopLocation={shop.location || 'Kampala Arcade, Block C'} 
+            shopName={shop.name} 
+            themeColor="#06b6d4" 
+          />
 
         </div>
       </div>

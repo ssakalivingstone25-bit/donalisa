@@ -92,8 +92,9 @@ export default function BizLinkUganda({
     const matchesSearch = shop.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           shop.description.toLowerCase().includes(searchQuery.toLowerCase());
     
-    // Check if category is match (we can match description or template style)
+    // Check if category is match (we can match explicit category, description or template style)
     const matchesCategory = selectedCategory === 'all' || 
+                            (shop.category && shop.category.toLowerCase() === selectedCategory.toLowerCase()) ||
                             shop.description.toLowerCase().includes(selectedCategory.toLowerCase()) ||
                             shop.name.toLowerCase().includes(selectedCategory.toLowerCase());
 
