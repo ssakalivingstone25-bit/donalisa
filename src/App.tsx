@@ -18,6 +18,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useSearchStore } from '@/store/searchStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { usePlayerStore } from '@/store/playerStore';
+import { usePwaStore } from '@/store/pwaStore';
 import type { UserProfile } from '@/types';
 import { motion, AnimatePresence } from 'motion/react';
 import StreamingPortal from './components/StreamingPortal';
@@ -30,6 +31,7 @@ export default function App() {
   const { searchQuery, setSearchQuery } = useSearchStore();
   const { notifications, unreadCount, markAsRead, markAllAsRead, clearNotification, clearAllNotifications } = useNotificationStore();
   const { playMovie } = usePlayerStore();
+  const { initPwaListeners } = usePwaStore();
 
   const [showDevPanel, setShowDevPanel] = useState(false);
   const [activeTab, setActiveTab] = useState<'init' | 'firebase' | 'collections' | 'storage' | 'security' | 'testing'>('firebase');
@@ -70,6 +72,7 @@ export default function App() {
 
   // Prompt for standard browser notification permission on visit
   useEffect(() => {
+    initPwaListeners();
     if (typeof window !== 'undefined' && 'Notification' in window) {
       if (Notification.permission === 'default') {
         Notification.requestPermission().then((permission) => {
@@ -79,7 +82,7 @@ export default function App() {
         });
       }
     }
-  }, []);
+  }, [initPwaListeners]);
 
   // Real-time listener for global settings
   useEffect(() => {

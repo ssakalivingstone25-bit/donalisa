@@ -54,3 +54,25 @@ self.addEventListener('notificationclick', (event) => {
     })
   );
 });
+
+// Standard SW lifecycle events for PWA offline-readiness
+self.addEventListener('install', (event) => {
+  console.log('[Service Worker] Installed');
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  console.log('[Service Worker] Activated');
+  event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener('fetch', (event) => {
+  // Simple pass-through for network requests to satisfy browser installability
+  // and offline capability checks.
+  event.respondWith(
+    fetch(event.request).catch(() => {
+      // Offline fallback can go here if wanted
+      return caches.match(event.request);
+    })
+  );
+});
