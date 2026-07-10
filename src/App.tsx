@@ -68,6 +68,19 @@ export default function App() {
     });
   };
 
+  // Prompt for standard browser notification permission on visit
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().then((permission) => {
+          console.log(`Push notification permission status: ${permission}`);
+        }).catch((err) => {
+          console.warn('Error requesting notification permission:', err);
+        });
+      }
+    }
+  }, []);
+
   // Real-time listener for global settings
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, 'settings', 'global'), (docSnap) => {

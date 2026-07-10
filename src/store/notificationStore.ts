@@ -19,6 +19,7 @@ interface NotificationState {
   unreadCount: number;
   initialized: boolean;
   userId: string | null;
+  dismissedNotificationIds: string[];
   addLocalNotification: (notification: Omit<NotificationMessage, 'id' | 'createdAt'>) => void;
   markAsRead: (notificationId: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
@@ -37,6 +38,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
     unreadCount: 0,
     initialized: false,
     userId: null,
+    dismissedNotificationIds: [],
 
     addLocalNotification: (notifData) => {
       const newNotif: NotificationMessage = {
@@ -106,17 +108,19 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
     },
 
     clearNotification: async (notificationId) => {
-      if (!notificationId.startsWith('local-')) {
+      const { dismissedNotificationIds, userId } = get();
+      const updatedDismissed = [...dismissedNotificationIds, notificationId];
+      if (userId) {
         try {
-          const docRef = doc(db, 'notifications', notificationId);
-          await deleteDoc(docRef);
-        } catch (err) {
-          console.error('Failed to delete notification in Firestore:', err);
+          localStorage.setItem(`dismissed_notifications_${userId}`, JSON.stringify(updatedDismissed));
+        } catch (e) {
+          console.warn('Failed to save dismissed notification to localStorage:', e);
         }
       }
       set((state) => {
         const updated = state.notifications.filter((n) => n.id !== notificationId);
         return {
+          dismissedNotificationIds: updatedDismissed,
           notifications: updated,
           unreadCount: updated.filter((n) => !n.read).length,
         };
@@ -124,31 +128,38 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
     },
 
     clearAllNotifications: async () => {
-      const { notifications, userId } = get();
-      const promises = notifications
-        .filter((n) => !n.id.startsWith('local-') && n.userId && n.userId === userId)
-        .map((n) => {
-          const docRef = doc(db, 'notifications', n.id);
-          return deleteDoc(docRef);
-        });
-
-      if (promises.length > 0) {
+      const { notifications, dismissedNotificationIds, userId } = get();
+      const idsToDismiss = notifications.map((n) => n.id);
+      const updatedDismissed = Array.from(new Set([...dismissedNotificationIds, ...idsToDismiss]));
+      if (userId) {
         try {
-          await Promise.all(promises);
-        } catch (err) {
-          console.error('Failed to delete all notifications in Firestore:', err);
+          localStorage.setItem(`dismissed_notifications_${userId}`, JSON.stringify(updatedDismissed));
+        } catch (e) {
+          console.warn('Failed to save dismissed notifications to localStorage:', e);
         }
       }
-
       set({
+        dismissedNotificationIds: updatedDismissed,
         notifications: [],
         unreadCount: 0,
       });
     },
 
     initListeners: (userId, watchedMovieIds, moviesList) => {
-      // Set the user ID in store
-      set({ userId });
+      // Load user-specific dismissed notifications from localStorage first
+      let localDismissed: string[] = [];
+      try {
+        const stored = localStorage.getItem(`dismissed_notifications_${userId}`);
+        if (stored) {
+          localDismissed = JSON.parse(stored);
+        }
+      } catch (e) {
+        console.warn('Failed to parse stored dismissed notifications:', e);
+      }
+
+      // Set user ID and loaded dismissed notification IDs in store
+      set({ userId, dismissedNotificationIds: localDismissed });
+
       // Prevent double-binding
       if (unsubscribeDb) unsubscribeDb();
       if (unsubscribeRatings) unsubscribeRatings();
@@ -171,14 +182,18 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
           fetchedNotifs.push({ id: doc.id, ...doc.data() } as NotificationMessage);
         });
 
+        // Get fresh dismissed lists to filter
+        const { dismissedNotificationIds: currentDismissed } = get();
+        const activeFetched = fetchedNotifs.filter((n) => !currentDismissed.includes(n.id));
+
         // Client-side sort by createdAt descending (avoids requiring composite indexes)
-        fetchedNotifs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        activeFetched.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
         // Keep local notifications and merge with fetched ones
         set((state) => {
-          const localOnly = state.notifications.filter((n) => n.id.startsWith('local-'));
+          const localOnly = state.notifications.filter((n) => n.id.startsWith('local-') && !currentDismissed.includes(n.id));
           // Filter out duplicates if any
-          const merged = [...localOnly, ...fetchedNotifs].reduce<NotificationMessage[]>((acc, current) => {
+          const merged = [...localOnly, ...activeFetched].reduce<NotificationMessage[]>((acc, current) => {
             if (!acc.some((item) => item.id === current.id)) {
               acc.push(current);
             }
