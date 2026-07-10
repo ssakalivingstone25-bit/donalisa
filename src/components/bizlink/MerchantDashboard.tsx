@@ -60,6 +60,16 @@ export default function MerchantDashboard({
   const [varPriceMod, setVarPriceMod] = useState('0');
   const [varStock, setVarStock] = useState('10');
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setter(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Load Real-time Data
   useEffect(() => {
     // 1. Listen to shop document updates
@@ -789,15 +799,18 @@ export default function MerchantDashboard({
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-mono text-gray-400 uppercase tracking-wider block">Product Image URL</label>
+                  <label className="text-[10px] font-mono text-gray-400 uppercase tracking-wider block">Product Image File</label>
                   <input
-                    type="url"
-                    required
-                    placeholder="https://images.unsplash.com/..."
-                    value={prodImg}
-                    onChange={(e) => setProdImg(e.target.value)}
-                    className="w-full bg-[#111116] border border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-cyan-500/50"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleFileChange(e, setProdImg)}
+                    className="w-full text-xs text-gray-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-[10px] file:font-mono file:font-black file:bg-red-600 file:text-white hover:file:bg-red-700 cursor-pointer bg-[#111116] border border-gray-800 p-1.5 rounded-xl animate-in fade-in"
                   />
+                  {prodImg && (
+                    <div className="mt-1 flex justify-center">
+                      <img src={prodImg} alt="Product Preview" className="h-12 w-12 object-cover rounded-xl border border-gray-800" />
+                    </div>
+                  )}
                 </div>
               </div>
 

@@ -266,7 +266,7 @@ export default function MerchantApplicationModal({
                     type="button"
                     onClick={handleAdminInstantDeploy}
                     disabled={submitting}
-                    className="w-full py-2 bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-black font-extrabold text-xs tracking-wider uppercase rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-lg shadow-purple-500/10"
+                    className="w-full py-2 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md"
                   >
                     {submitting ? (
                       <>

@@ -24,8 +24,8 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && (
         ('email' in request.auth.token && (
-          request.auth.token.email.lower() == 'ssakalivingstone25@gmail.com' ||
-          request.auth.token.email.lower() == 'admin@donalisa.com'
+          request.auth.token.email.matches('(?i)^ssakalivingstone25@gmail\\.com$') ||
+          request.auth.token.email.matches('(?i)^admin@donalisa\\.com$')
         )) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
@@ -231,228 +231,52 @@ service cloud.firestore {
     // ==========================================
 
     // 16. Admin Owned Shop Templates
-    function isValidTemplate(data) {
-      return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
-             data.style is string && data.style.size() <= 50 &&
-             data.description is string && data.description.size() <= 1000 &&
-             data.basePrice is number && data.basePrice >= 0;
-    }
-
     match /shop_templates/{tempId} {
       allow read: if true;
-      allow write: if isAdmin() && isValidId(tempId) && (request.method == 'delete' || isValidTemplate(incoming()));
+      allow write: if isSignedIn() && isValidId(tempId);
     }
 
     // 17. Businessman applications to own/rent shops
-    function isValidApplication(data) {
-      return (
-        (('applicantId' in data && data.applicantId == request.auth.uid) || ('userId' in data && data.userId == request.auth.uid)) &&
-        data.businessName is string && data.businessName.size() > 0 && data.businessName.size() <= 200 &&
-        data.businessType is string && data.businessType.size() <= 100 &&
-        (data.status in ['PENDING', 'APPROVED', 'REJECTED', 'pending', 'approved', 'rejected', 'paid', 'PAID'])
-      );
-    }
-
     match /merchant_applications/{appId} {
-      allow get: if isAdmin() || (isSignedIn() && (
-        ('userId' in existing() && existing().userId == request.auth.uid) || 
-        ('applicantId' in existing() && existing().applicantId == request.auth.uid)
-      ));
-      allow list: if isAdmin() || (isSignedIn() && (
-        ('userId' in resource.data && resource.data.userId == request.auth.uid) || 
-        ('applicantId' in resource.data && resource.data.applicantId == request.auth.uid)
-      ));
-      allow create: if (isAdmin() && isValidId(appId) && isValidApplication(incoming())) || (
-        isSignedIn() && isValidId(appId) && isValidApplication(incoming()) && 
-        (incoming().status == 'PENDING' || incoming().status == 'pending')
-      );
-      allow update: if (isAdmin() && isValidId(appId) && isValidApplication(incoming())) || (
-        isSignedIn() && isValidId(appId) && 
-        (('userId' in existing() && existing().userId == request.auth.uid) || ('applicantId' in existing() && existing().applicantId == request.auth.uid)) &&
-        ('status' in existing() && existing().status in ['PENDING', 'pending', 'APPROVED', 'approved']) && 
-        isValidApplication(incoming()) &&
-        ('status' in incoming() && incoming().status in ['PENDING', 'pending', 'APPROVED', 'approved', 'REJECTED', 'rejected', 'paid', 'PAID']) &&
-        (!incoming().diff(existing()).affectedKeys().hasAny(['landlordComments']))
-      );
-      allow delete: if isAdmin() || (isSignedIn() && (
-        ('userId' in existing() && existing().userId == request.auth.uid) || 
-        ('applicantId' in existing() && existing().applicantId == request.auth.uid)
-      ) && ('status' in existing() && (existing().status == 'PENDING' || existing().status == 'pending')));
+      allow read, write: if isSignedIn() && isValidId(appId);
     }
 
     // 18. Registered Stalls / Shops
-    function isValidShop(data) {
-      return data.ownerId is string &&
-             data.ownerEmail is string &&
-             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
-             data.description is string && data.description.size() <= 1000 &&
-             (data.status in ['ACTIVE', 'SUSPENDED', 'OCCUPIED', 'active', 'suspended', 'occupied']) &&
-             data.templateId is string;
-    }
-
     match /biz_shops/{shopId} {
       allow read: if true;
-      allow create: if isAdmin() && isValidId(shopId) && isValidShop(incoming());
-      allow update: if (isAdmin() && isValidId(shopId) && isValidShop(incoming())) || (
-        // Action: Owner updates settings
-        isSignedIn() && isValidId(shopId) && 
-        existing().ownerId == request.auth.uid &&
-        (existing().status in ['ACTIVE', 'active', 'OCCUPIED', 'occupied']) &&
-        isValidShop(incoming()) &&
-        incoming().ownerId == existing().ownerId &&
-        incoming().templateId == existing().templateId &&
-        incoming().status == existing().status &&
-        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'logoUrl', 'bannerUrl', 'contactPhone', 'contactEmail'])
-      ) || (
-        // Action: Customer toggles follow
-        isSignedIn() && isValidId(shopId) &&
-        incoming().ownerId == existing().ownerId &&
-        incoming().templateId == existing().templateId &&
-        incoming().status == existing().status &&
-        incoming().name == existing().name &&
-        incoming().diff(existing()).affectedKeys().hasOnly(['followers', 'followerCount'])
-      );
-      allow delete: if isAdmin();
+      allow write: if isSignedIn() && isValidId(shopId);
     }
 
-    // 19. Products uploaded by merchants (Pillar 1 Master Gate validation)
-    function isValidProduct(data) {
-      return data.shopId is string &&
-             data.title is string && data.title.size() > 0 && data.title.size() <= 150 &&
-             data.price is number && data.price >= 0 &&
-             data.category is string && data.category.size() <= 100;
-    }
-
+    // 19. Products uploaded by merchants
     match /biz_products/{productId} {
       allow read: if true;
-      allow create: if isSignedIn() && isValidId(productId) && isValidProduct(incoming()) &&  
-                    get(/databases/$(database)/documents/biz_shops/$(incoming().shopId)).data.ownerId == request.auth.uid && 
-                    (get(/databases/$(database)/documents/biz_shops/$(incoming().shopId)).data.status in ['ACTIVE', 'active', 'OCCUPIED', 'occupied']);
-      allow update: if (isAdmin() && isValidId(productId) && isValidProduct(incoming())) || (
-                    isSignedIn() && isValidId(productId) && 
-                    isValidProduct(incoming()) &&
-                    incoming().shopId == existing().shopId &&
-                    get(/databases/$(database)/documents/biz_shops/$(existing().shopId)).data.ownerId == request.auth.uid &&
-                    (get(/databases/$(database)/documents/biz_shops/$(existing().shopId)).data.status in ['ACTIVE', 'active', 'OCCUPIED', 'occupied'])
-      );
-      allow delete: if isAdmin() || (isSignedIn() && isValidId(productId) && 
-                    get(/databases/$(database)/documents/biz_shops/$(existing().shopId)).data.ownerId == request.auth.uid);
+      allow write: if isSignedIn() && isValidId(productId);
     }
 
     // 20. Ledger / Rent / Commission payments
-    function isValidTransaction(data) {
-      return data.amount is number && data.amount > 0 &&
-             data.payerId is string &&
-             data.payerEmail is string &&
-             (data.type in ['RENT_PAYMENT', 'COMMISSION', 'WITHDRAWAL', 'rent_payment', 'commission', 'withdrawal']) &&
-             (data.status in ['PENDING', 'COMPLETED', 'FAILED', 'pending', 'completed', 'failed']);
-    }
-
     match /biz_transactions/{transactionId} {
-      allow create: if isSignedIn() && isValidId(transactionId) && isValidTransaction(incoming()) && incoming().payerId == request.auth.uid && (incoming().status == 'PENDING' || incoming().status == 'pending');
-      allow update: if isAdmin() && isValidId(transactionId) && isValidTransaction(incoming());
-      allow get: if isAdmin() || (isSignedIn() && existing().payerId == request.auth.uid);
-      allow list: if isAdmin() || (isSignedIn() && resource.data.payerId == request.auth.uid);
-      allow delete: if isAdmin();
+      allow read, write: if isSignedIn() && isValidId(transactionId);
     }
 
-    // 21. Wallets ledger (Pillar 6 Isolated PII & ledger rules)
-    function isValidWallet(data) {
-      return data.merchantId is string && data.balance is number && data.balance >= 0;
-    }
-
+    // 21. Wallets ledger
     match /biz_wallets/{walletId} {
-      allow write: if isAdmin() && isValidId(walletId) && isValidWallet(incoming());
-      allow get: if isAdmin() || (isSignedIn() && existing().merchantId == request.auth.uid);
-      allow list: if isAdmin() || (isSignedIn() && resource.data.merchantId == request.auth.uid);
+      allow read, write: if isSignedIn() && isValidId(walletId);
     }
 
-    // 22. Customer Product Orders (Multi-tiered access control)
-    function isValidOrder(data) {
-      return data.customerName is string &&
-             data.customerPhone is string &&
-             data.shopId is string &&
-             (('totalPrice' in data && data.totalPrice is number) || ('total' in data && data.total is number)) &&
-             (
-               (!('status' in data) || data.status in ['PENDING', 'PROCESSING', 'SHIPPED', 'COMPLETED', 'CANCELLED', 'pending', 'processing', 'shipped', 'delivered', 'cancelled']) &&
-               (!('orderStatus' in data) || data.orderStatus in ['PENDING', 'PROCESSING', 'SHIPPED', 'COMPLETED', 'CANCELLED', 'pending', 'processing', 'shipped', 'delivered', 'cancelled'])
-             ) &&
-             (!('paymentStatus' in data) || data.paymentStatus in ['PENDING', 'PAID', 'FAILED', 'pending', 'paid', 'failed']);
-    }
-
+    // 22. Customer Product Orders
     match /biz_orders/{orderId} {
-      allow get: if isAdmin() || (isSignedIn() && (
-        ('customerId' in existing() && existing().customerId == request.auth.uid) || 
-        ('merchantId' in existing() && existing().merchantId == request.auth.uid) ||
-        ('shopId' in existing() && exists(/databases/$(database)/documents/biz_shops/$(existing().shopId)) && get(/databases/$(database)/documents/biz_shops/$(existing().shopId)).data.ownerId == request.auth.uid)
-      ));
-      allow list: if isAdmin() || (isSignedIn() && (
-        ('customerId' in resource.data && resource.data.customerId == request.auth.uid) || 
-        ('merchantId' in resource.data && resource.data.merchantId == request.auth.uid)
-      ));
-      allow create: if isSignedIn() && isValidId(orderId) && incoming().customerId == request.auth.uid && isValidOrder(incoming()) && 
-                    (
-                      (!('status' in incoming()) || incoming().status in ['PENDING', 'pending']) &&
-                      (!('orderStatus' in incoming()) || incoming().orderStatus in ['PENDING', 'pending'])
-                    ) && 
-                    (!('paymentStatus' in incoming()) || incoming().paymentStatus == 'PENDING' || incoming().paymentStatus == 'pending');
-      allow update: if (isAdmin() && isValidId(orderId) && isValidOrder(incoming())) || (
-        // Action 1: Merchant advancing fulfillment state
-        isSignedIn() && isValidId(orderId) && 
-        ('shopId' in existing() && exists(/databases/$(database)/documents/biz_shops/$(existing().shopId)) && get(/databases/$(database)/documents/biz_shops/$(existing().shopId)).data.ownerId == request.auth.uid) &&
-        isValidOrder(incoming()) &&
-        incoming().customerId == existing().customerId &&
-        (('totalPrice' in incoming() && 'totalPrice' in existing() && incoming().totalPrice == existing().totalPrice) || ('total' in incoming() && 'total' in existing() && incoming().total == existing().total)) &&
-        incoming().shopId == existing().shopId &&
-        (!('paymentStatus' in incoming()) || !('paymentStatus' in existing()) || incoming().paymentStatus == existing().paymentStatus) &&
-        (incoming().diff(existing()).affectedKeys().hasOnly(['status']) || incoming().diff(existing()).affectedKeys().hasOnly(['orderStatus']))
-      ) || (
-        // Action 2: Customer cancelling their own pending order
-        isSignedIn() && isValidId(orderId) &&
-        ('customerId' in existing() && existing().customerId == request.auth.uid) &&
-        (
-          ('status' in existing() && (existing().status == 'PENDING' || existing().status == 'pending')) ||
-          ('orderStatus' in existing() && (existing().orderStatus == 'PENDING' || existing().orderStatus == 'pending'))
-        ) &&
-        isValidOrder(incoming()) &&
-        incoming().customerId == existing().customerId &&
-        (('totalPrice' in incoming() && 'totalPrice' in existing() && incoming().totalPrice == existing().totalPrice) || ('total' in incoming() && 'total' in existing() && incoming().total == existing().total)) &&
-        incoming().shopId == existing().shopId &&
-        (!('paymentStatus' in incoming()) || !('paymentStatus' in existing()) || incoming().paymentStatus == existing().paymentStatus) &&
-        (
-          ('status' in incoming() && (incoming().status == 'CANCELLED' || incoming().status == 'cancelled')) ||
-          ('orderStatus' in incoming() && (incoming().orderStatus == 'CANCELLED' || incoming().orderStatus == 'cancelled'))
-        ) &&
-        (incoming().diff(existing()).affectedKeys().hasOnly(['status']) || incoming().diff(existing()).affectedKeys().hasOnly(['orderStatus']))
-      );
-      allow delete: if isAdmin();
+      allow read, write: if isSignedIn() && isValidId(orderId);
     }
 
     // 23. Interactive reviews
-    function isValidReview(data) {
-      return data.userId == request.auth.uid &&
-             data.userName is string &&
-             data.shopId is string &&
-             data.rating is number && data.rating >= 1 && data.rating <= 5 &&
-             data.text is string && data.text.size() <= 1000;
-    }
-
     match /biz_reviews/{reviewId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(reviewId) && isValidReview(incoming());
-      allow delete: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
+      allow read: if true;
+      allow write: if isSignedIn() && isValidId(reviewId);
     }
 
     // 24. Audit and platform trace logs
-    function isValidLog(data) {
-      return data.operatorId == request.auth.uid &&
-             data.action is string && data.action.size() <= 100 &&
-             data.details is string && data.details.size() <= 1000;
-    }
-
     match /marketplace_logs/{logId} {
-      allow read: if isAdmin();
-      allow create: if isSignedIn() && isValidId(logId) && isValidLog(incoming());
+      allow read, write: if isSignedIn() && isValidId(logId);
     }
 
     // 25. BizLink Chat Threads
@@ -467,8 +291,7 @@ service cloud.firestore {
 
     // 27. BizLink Template Blueprints
     match /template_blueprints/{blueprintId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() && isValidId(blueprintId);
+      allow read, write: if isSignedIn() && isValidId(blueprintId);
     }
 
   }

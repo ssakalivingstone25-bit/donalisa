@@ -8,7 +8,7 @@ import {
   CheckCircle2, Server, Smartphone, Database, Lock, Cloud, 
   Bell, Sparkles, Terminal, FileCode, Check, ArrowRight,
   Flame, Key, HardDrive, Cpu, AlertCircle, Tv, LogOut, User,
-  Loader2, Search, Facebook, Twitter, Youtube
+  Loader2, Search, Facebook, Twitter, Youtube, Trash2, X
 } from 'lucide-react';
 import { auth, db, firebaseConfig } from '@/firebase/config';
 import { handleFirestoreError, OperationType } from '@/lib/firestoreErrors';
@@ -28,7 +28,7 @@ import logoImg from '@/assets/images/donalisa_logo_1782938170546.jpg';
 export default function App() {
   const { user, loading, initialized, setUser, setLoading, setInitialized } = useAuthStore();
   const { searchQuery, setSearchQuery } = useSearchStore();
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotificationStore();
+  const { notifications, unreadCount, markAsRead, markAllAsRead, clearNotification, clearAllNotifications } = useNotificationStore();
   const { playMovie } = usePlayerStore();
 
   const [showDevPanel, setShowDevPanel] = useState(false);
@@ -302,14 +302,25 @@ export default function App() {
                           <h3 className="text-xs font-bold font-mono text-white flex items-center gap-2">
                             <Bell className="w-3.5 h-3.5 text-red-500 animate-pulse" /> Notifications Feed
                           </h3>
-                          {unreadCount > 0 && (
-                            <button
-                              onClick={() => markAllAsRead()}
-                              className="text-[10px] text-[#00E5FF] hover:text-cyan-300 font-mono font-bold cursor-pointer transition-colors"
-                            >
-                              Dismiss All
-                            </button>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {unreadCount > 0 && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); markAllAsRead(); }}
+                                className="text-[10px] text-[#00E5FF] hover:text-cyan-300 font-mono font-bold cursor-pointer transition-colors"
+                              >
+                                Dismiss All
+                              </button>
+                            )}
+                            {notifications.length > 0 && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); clearAllNotifications(); }}
+                                className="text-[10px] text-red-500 hover:text-red-400 font-mono font-bold cursor-pointer transition-colors flex items-center gap-0.5"
+                                title="Clear All"
+                              >
+                                <Trash2 className="w-2.5 h-2.5" /> Clear All
+                              </button>
+                            )}
+                          </div>
                         </div>
 
                         <div className="mt-3 max-h-[300px] overflow-y-auto space-y-2 pr-1 scrollbar-thin">
@@ -343,9 +354,21 @@ export default function App() {
                                     <h4 className="text-xs font-bold text-white truncate leading-tight group-hover:text-red-500 transition-colors">
                                       {notif.title}
                                     </h4>
-                                    {!notif.read && (
-                                      <span className="w-1.5 h-1.5 rounded-full bg-red-600 shrink-0" />
-                                    )}
+                                    <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                      {!notif.read && (
+                                        <span className="w-1.5 h-1.5 rounded-full bg-red-600" />
+                                      )}
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          clearNotification(notif.id);
+                                        }}
+                                        className="text-gray-600 hover:text-red-500 p-0.5 rounded transition-colors"
+                                        title="Clear Notification"
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    </div>
                                   </div>
                                   <p className="text-[11px] text-[#888] leading-normal">{notif.body}</p>
                                   <p className="text-[9px] text-[#555] font-mono">
@@ -516,7 +539,7 @@ export default function App() {
               </div>
 
               {/* Status Banner Card */}
-              <div className="p-6 rounded-2xl bg-gradient-to-r from-[#141414] via-[#0f0f0f] to-[#0a0a0a] border border-[#222222] flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden shadow-xl text-left">
+              <div className="p-6 rounded-2xl bg-[#121212] border border-[#222222] flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden shadow-xl text-left">
                 <div className="space-y-3 max-w-3xl">
                   <div className="flex items-center gap-2 text-[#00E5FF] text-[11px] font-mono font-bold uppercase tracking-[0.1em]">
                     <Sparkles className="w-3.5 h-3.5 text-[#00E5FF]" /> Senior Full Stack & Firebase Engineer Report

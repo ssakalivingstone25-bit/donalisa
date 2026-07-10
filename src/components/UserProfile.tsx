@@ -339,7 +339,7 @@ export default function UserProfile({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         {/* Profile Details Panel (Left Column) */}
         <div className="lg:col-span-1 bg-[#111111]/90 border border-[#222222] rounded-3xl p-6 space-y-6 relative overflow-hidden backdrop-blur-sm">
-          <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[#00E5FF] to-red-600" />
+          <div className="absolute top-0 left-0 right-0 h-[2px] bg-red-600" />
           
           <div className="flex flex-col items-center text-center space-y-4">
             {/* Avatar upload & drag zone */}
@@ -443,7 +443,7 @@ export default function UserProfile({
                   type="button"
                   onClick={handleBecomeMerchant}
                   disabled={updatingMerchant}
-                  className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer uppercase tracking-wider font-mono shadow-md"
+                  className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black transition-all cursor-pointer uppercase tracking-wider font-mono shadow-md"
                 >
                   {updatingMerchant ? (
                     <>

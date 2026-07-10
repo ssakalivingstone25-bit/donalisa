@@ -69,7 +69,7 @@ export default function AdminDashboard({
 
   // Legacy template creation modal (will be kept as fallback/basic builder)
   const [showTemplateModal, setShowTemplateModal] = useState(false);
-  const [templateBuilderTab, setTemplateBuilderTab] = useState<'preset' | 'manual'>('preset');
+  const [templateBuilderTab, setTemplateBuilderTab] = useState<'preset' | 'manual'>('manual');
   const [tempName, setTempName] = useState('');
   const [tempDesc, setTempDesc] = useState('');
   const [tempBanner, setTempBanner] = useState('');
@@ -97,33 +97,7 @@ export default function AdminDashboard({
         status: b.status || 'published'
       }));
       const combined = [...rawTemplates, ...mappedBlueprints];
-      
-      // If Firestore returned no templates, or failed to read them, automatically seed with PREDEFINED_NICHES!
-      if (combined.length === 0) {
-        const fallbacks = PREDEFINED_NICHES.map(n => ({
-          id: `template_${n.key}`,
-          name: n.name,
-          description: n.description,
-          category: n.category,
-          industry: n.industry,
-          tags: n.tags,
-          themeColor: n.themeColor,
-          typography: n.typography,
-          layoutStyle: n.layoutStyle,
-          bannerUrl: n.bannerUrl,
-          logoUrl: n.logoUrl,
-          businessHours: n.businessHours,
-          location: n.location,
-          homepageBlocks: n.homepageBlocks,
-          faqs: n.faqs,
-          policies: n.policies,
-          status: 'published',
-          isFallback: true
-        }));
-        setTemplates(fallbacks);
-      } else {
-        setTemplates(combined);
-      }
+      setTemplates(combined);
     };
 
     // Safety timeout to ensure loading spinner is ALWAYS dismissed even if Firestore listeners get blocked/error
@@ -209,6 +183,16 @@ export default function AdminDashboard({
       unsubscribeOrders();
     };
   }, []);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setter(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Create new shop template
   const handleCreateTemplate = async (e: React.FormEvent) => {
@@ -360,6 +344,18 @@ export default function AdminDashboard({
       }
     } catch (err) {
       console.error("Error deleting template:", err);
+    }
+  };
+
+  const handleToggleTemplatePublish = async (id: string, currentStatus: string) => {
+    try {
+      const newStatus = currentStatus === 'published' ? 'draft' : 'published';
+      await updateDoc(doc(db, 'shop_templates', id), {
+        status: newStatus
+      });
+    } catch (err: any) {
+      console.error("Error toggling template publish:", err);
+      alert(`Error toggling template publish: ${err.message || err}`);
     }
   };
 
@@ -942,7 +938,7 @@ export default function AdminDashboard({
                     </div>
                     <button
                       onClick={() => setShowTemplateModal(true)}
-                      className="px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-black font-extrabold font-mono rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/15 cursor-pointer transition-all uppercase tracking-wider"
+                      className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-extrabold font-mono rounded-xl text-xs flex items-center justify-center gap-2 shadow-md cursor-pointer transition-all uppercase tracking-wider"
                     >
                       <Plus className="w-4 h-4 text-black" />
                       <span>➕ Add Template</span>
@@ -1039,6 +1035,17 @@ export default function AdminDashboard({
                                 <span className="text-gray-500">{(temp.monthlySubscription || 0).toLocaleString()}/mo</span>
                               </div>
                               <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => handleToggleTemplatePublish(temp.id, temp.status)}
+                                  className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition-all cursor-pointer text-[9px] border font-black uppercase ${
+                                    temp.status === 'published'
+                                      ? 'bg-emerald-950/20 border-emerald-900 text-emerald-400 hover:bg-emerald-900/20'
+                                      : 'bg-amber-950/20 border-amber-900 text-amber-400 hover:bg-amber-900/20'
+                                  }`}
+                                  title="Toggle visibility on user dashboard"
+                                >
+                                  <span>{temp.status === 'published' ? '🟢 Published' : '🟡 Draft (Publish)'}</span>
+                                </button>
                                 <button
                                   onClick={() => handleOpenEditSetup(temp)}
                                   className="px-2.5 py-1.5 bg-[#12121a] border border-gray-800 hover:border-purple-500/30 text-purple-400 hover:text-white rounded-lg flex items-center gap-1 transition-all cursor-pointer text-[9px]"
@@ -1173,104 +1180,15 @@ export default function AdminDashboard({
                 </div>
               </div>
             ) : (
-              /* NICHE SELECTOR OR MANUAL CREATOR BOARD */
+              /* MANUAL TEMPLATE ARCHITECT BOARD */
               <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
-                {/* Builder Mode Selector Tabs */}
-                <div className="flex border-b border-[#1a1a24] pb-1 gap-2">
-                  <button
-                    onClick={() => setTemplateBuilderTab('preset')}
-                    className={`pb-2.5 px-4 text-xs font-mono font-extrabold tracking-wider uppercase transition-all relative cursor-pointer ${
-                      templateBuilderTab === 'preset'
-                        ? 'text-cyan-400 border-b-2 border-cyan-400'
-                        : 'text-gray-500 hover:text-gray-300'
-                    }`}
-                  >
-                    🤖 Predefined Niche Hydrator
-                  </button>
-                  <button
-                    onClick={() => setTemplateBuilderTab('manual')}
-                    className={`pb-2.5 px-4 text-xs font-mono font-extrabold tracking-wider uppercase transition-all relative cursor-pointer ${
-                      templateBuilderTab === 'manual'
-                        ? 'text-purple-400 border-b-2 border-purple-400'
-                        : 'text-gray-500 hover:text-gray-300'
-                    }`}
-                  >
-                    ✍️ Manual Template Architect
-                  </button>
+                <div className="space-y-1.5 border-b border-[#1a1a24] pb-3">
+                  <h4 className="text-xs font-black text-white uppercase font-mono tracking-wider">✍️ Manual Template Architect</h4>
+                  <p className="text-[10px] text-gray-500 font-mono">Design and build custom reusable storefront templates, populate with initial structures, and choose whether to publish directly to merchant dashboards.</p>
                 </div>
 
-                {templateBuilderTab === 'preset' ? (
-                  <>
-                    <div className="space-y-1.5">
-                      <h4 className="text-xs font-black text-white uppercase font-mono tracking-wider">Select Premium Blueprint Niche</h4>
-                      <p className="text-[10px] text-gray-500 font-mono">The BizLink Engine automatically designs full layouts with custom typography, 10 responsive homepage sections, delivery rules, sample reviews, and pre-seeded products.</p>
-                    </div>
-
-                    {/* Grid of Predefined Blueprints */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                      {PREDEFINED_NICHES.map((niche) => (
-                        <button
-                          key={niche.key}
-                          onClick={() => setSelectedNicheKey(niche.key)}
-                          className={`p-4 text-left rounded-xl border transition-all relative overflow-hidden flex flex-col justify-between h-44 cursor-pointer ${
-                            selectedNicheKey === niche.key
-                              ? 'bg-purple-950/15 border-purple-500 shadow-lg shadow-purple-500/5'
-                              : 'bg-[#111116] border-gray-900 hover:border-gray-800'
-                          }`}
-                        >
-                          <div className="relative z-10 space-y-1">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[8px] font-mono tracking-widest text-cyan-400 uppercase font-black">
-                                {niche.category}
-                              </span>
-                              <span className="text-[10px] font-mono text-purple-400 font-black">
-                                {niche.price.toLocaleString()} UGX
-                              </span>
-                            </div>
-                            <h5 className="text-xs font-bold text-white mt-1">{niche.name}</h5>
-                            <p className="text-[9px] text-gray-500 line-clamp-2 italic">"{niche.slogan}"</p>
-                          </div>
-
-                          <div className="relative z-10 pt-2 border-t border-gray-900/60 mt-2 flex justify-between items-center text-[8px] font-mono text-gray-500">
-                            <span>Theme: {niche.layoutStyle}</span>
-                            <span className="flex items-center gap-1">
-                              Font: <span className="text-white">{niche.typography}</span>
-                            </span>
-                          </div>
-
-                          {selectedNicheKey === niche.key && (
-                            <div className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-purple-500 animate-ping" />
-                          )}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Generate Button */}
-                    <div className="pt-4 border-t border-[#1a1a24] flex gap-3">
-                      <button
-                        onClick={() => {
-                          setShowTemplateModal(false);
-                          setTempName('');
-                          setTempDesc('');
-                          setTempBanner('');
-                          setTempLogo('');
-                        }}
-                        className="flex-1 py-3 bg-[#13131c] hover:bg-[#1a1a26] text-gray-400 font-mono text-xs uppercase font-black rounded-xl border border-gray-800 transition-all cursor-pointer text-center"
-                      >
-                        Cancel Builder
-                      </button>
-                      <button
-                        onClick={() => handleAutoGenerate(selectedNicheKey)}
-                        className="flex-1 py-3 bg-gradient-to-r from-cyan-400 to-purple-600 hover:from-cyan-300 hover:to-purple-500 text-black font-mono text-xs uppercase font-black rounded-xl transition-all shadow-xl shadow-purple-500/15 cursor-pointer text-center flex items-center justify-center gap-2"
-                      >
-                        <Wand2 className="w-4 h-4 text-black" />
-                        <span>Hydrate Premium Storefront</span>
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  /* MANUAL CUSTOM DESIGN BOARD FORM */
-                  <form onSubmit={handleCreateTemplate} className="space-y-4 font-mono text-xs text-gray-300">
+                {/* MANUAL CUSTOM DESIGN BOARD FORM */}
+                <form onSubmit={handleCreateTemplate} className="space-y-4 font-mono text-xs text-gray-300">
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <label className="text-[10px] text-gray-400 block uppercase font-bold">Template Blueprint Name</label>
@@ -1361,41 +1279,38 @@ export default function AdminDashboard({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <label className="text-[10px] text-gray-400 block uppercase font-bold">Banner Wallpaper URL</label>
+                        <label className="text-[10px] text-gray-400 block uppercase font-bold">Banner Wallpaper (Image/Video File)</label>
                         <input
-                          type="text"
-                          required
-                          placeholder="Unsplash / static image URL"
-                          value={tempBanner}
-                          onChange={(e) => setTempBanner(e.target.value)}
-                          className="w-full px-3 py-2 bg-[#12121a] border border-gray-800 focus:border-purple-500 focus:outline-none rounded-xl text-white"
+                          type="file"
+                          accept="image/*,video/*"
+                          onChange={(e) => handleFileChange(e, setTempBanner)}
+                          className="w-full text-xs text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-mono file:font-black file:bg-red-600 file:text-white hover:file:bg-red-700 cursor-pointer bg-[#12121a] border border-gray-800 p-1 rounded-xl"
                         />
-                        <button
-                          type="button"
-                          onClick={() => setTempBanner('https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1200')}
-                          className="text-[9px] text-cyan-400 hover:underline text-left"
-                        >
-                          💡 Fill Sample Store Cover
-                        </button>
+                        {tempBanner && (
+                          <div className="mt-1.5 border border-gray-800 p-1 rounded-lg bg-black/40">
+                            {tempBanner.startsWith('data:video') || tempBanner.endsWith('.mp4') || tempBanner.endsWith('.webm') ? (
+                              <video src={tempBanner} className="max-h-16 w-full object-cover rounded" controls muted />
+                            ) : (
+                              <img src={tempBanner} alt="Banner Preview" className="max-h-16 w-full object-cover rounded" />
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div className="space-y-1">
-                        <label className="text-[10px] text-gray-400 block uppercase font-bold">Brand Logo URL</label>
+                        <label className="text-[10px] text-gray-400 block uppercase font-bold">Brand Logo (Image File)</label>
                         <input
-                          type="text"
-                          placeholder="Logo avatar URL"
-                          value={tempLogo}
-                          onChange={(e) => setTempLogo(e.target.value)}
-                          className="w-full px-3 py-2 bg-[#12121a] border border-gray-800 focus:border-purple-500 focus:outline-none rounded-xl text-white"
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleFileChange(e, setTempLogo)}
+                          className="w-full text-xs text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-mono file:font-black file:bg-red-600 file:text-white hover:file:bg-red-700 cursor-pointer bg-[#12121a] border border-gray-800 p-1 rounded-xl"
                         />
-                        <button
-                          type="button"
-                          onClick={() => setTempLogo('https://images.unsplash.com/photo-1516259762381-22954d7d3ad2?w=200')}
-                          className="text-[9px] text-purple-400 hover:underline text-left"
-                        >
-                          💡 Fill Sample Logo
-                        </button>
+                        {tempLogo && (
+                          <div className="mt-1.5 border border-gray-800 p-1 rounded-lg bg-black/40 flex justify-center">
+                            <img src={tempLogo} alt="Logo Preview" className="h-12 w-12 object-cover rounded-xl" />
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -1465,7 +1380,7 @@ export default function AdminDashboard({
                       <button
                         type="submit"
                         disabled={savingTemp}
-                        className="flex-1 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-mono text-xs uppercase font-black rounded-xl transition-all shadow-xl shadow-purple-500/15 cursor-pointer text-center flex items-center justify-center gap-2"
+                        className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-mono text-xs uppercase font-black rounded-xl transition-all shadow-md cursor-pointer text-center flex items-center justify-center gap-2"
                       >
                         {savingTemp ? (
                           <>
@@ -1481,7 +1396,6 @@ export default function AdminDashboard({
                       </button>
                     </div>
                   </form>
-                )}
               </div>
             )}
           </div>
@@ -1665,23 +1579,37 @@ export default function AdminDashboard({
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="text-[10px] font-mono text-gray-500 uppercase">Logo Image URL</label>
+                      <label className="text-[10px] font-mono text-gray-500 uppercase">Logo Image File</label>
                       <input
-                        type="url"
-                        value={formLogoUrl}
-                        onChange={(e) => setFormLogoUrl(e.target.value)}
-                        className="w-full bg-[#111116] border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none font-mono"
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileChange(e, setFormLogoUrl)}
+                        className="w-full text-xs text-gray-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-[10px] file:font-mono file:font-black file:bg-red-600 file:text-white hover:file:bg-red-700 cursor-pointer bg-[#111116] border border-gray-800 p-1 rounded-xl"
                       />
+                      {formLogoUrl && (
+                        <div className="mt-1 flex justify-center">
+                          <img src={formLogoUrl} alt="Logo Preview" className="h-10 w-10 object-cover rounded-xl border border-gray-800" />
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-mono text-gray-500 uppercase">Banner Cover URL</label>
+                      <label className="text-[10px] font-mono text-gray-500 uppercase">Banner Cover (Image/Video)</label>
                       <input
-                        type="url"
-                        value={formBannerUrl}
-                        onChange={(e) => setFormBannerUrl(e.target.value)}
-                        className="w-full bg-[#111116] border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none font-mono"
+                        type="file"
+                        accept="image/*,video/*"
+                        onChange={(e) => handleFileChange(e, setFormBannerUrl)}
+                        className="w-full text-xs text-gray-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-[10px] file:font-mono file:font-black file:bg-red-600 file:text-white hover:file:bg-red-700 cursor-pointer bg-[#111116] border border-gray-800 p-1 rounded-xl"
                       />
+                      {formBannerUrl && (
+                        <div className="mt-1 border border-gray-800 p-1 rounded-lg bg-black/40">
+                          {formBannerUrl.startsWith('data:video') || formBannerUrl.includes('.mp4') || formBannerUrl.includes('.webm') ? (
+                            <video src={formBannerUrl} className="max-h-12 w-full object-cover rounded" controls muted />
+                          ) : (
+                            <img src={formBannerUrl} alt="Banner Preview" className="max-h-12 w-full object-cover rounded" />
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 

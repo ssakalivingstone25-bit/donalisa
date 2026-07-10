@@ -4,7 +4,7 @@ import {
   Trash2, Plus, Info, HelpCircle, Film, Radio, 
   Flame, ShieldCheck, AlertCircle, Loader2, User, Check, Download,
   UploadCloud, FileVideo, Image, Calendar, Eye, X, Star, Bookmark, ChevronLeft, ChevronRight, SlidersHorizontal,
-  Music, MessageSquare, ThumbsUp, MessageCircle, Globe
+  Music, MessageSquare, ThumbsUp, MessageCircle, Globe, Smartphone
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Movie, FavoriteItem, WatchHistoryItem, Comment, CommentLike } from '@/types';
@@ -240,7 +240,7 @@ function MovieCard({
 
         {/* Atmospheric Gradients */}
         {hovered && (
-          <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/45 to-black/15 z-10 transition-opacity duration-300" />
+          <div className="absolute inset-0 bg-black/75 z-10 transition-opacity duration-300" />
         )}
 
         {/* Silent Atmospheric Looping Video Preview (Only for movies) */}
@@ -2503,6 +2503,40 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
                       )}
                     </div>
                   </form>
+
+                  {/* Device Push Notifications Prompt Trigger */}
+                  <div className="bg-[#0c0c0c] border border-[#222] p-5 rounded-2xl space-y-4 mt-6">
+                    <div className="flex items-start gap-3">
+                      <Smartphone className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="text-xs font-bold font-mono text-white uppercase tracking-wider">Device Push Notifications</h4>
+                        <p className="text-[11px] text-[#888] mt-1 leading-relaxed">
+                          Request standard device permissions to deliver push notifications directly to user's devices. This will prompt the browser to ask for permission.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!('Notification' in window)) {
+                            alert('This browser does not support desktop/device notifications.');
+                            return;
+                          }
+                          Notification.requestPermission().then((permission) => {
+                            alert(`Notification permission status: ${permission}`);
+                          });
+                        }}
+                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-mono font-bold text-[10px] uppercase rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 self-start"
+                      >
+                        🔔 Request Device Permission
+                      </button>
+                      <span className="text-[11px] text-zinc-500 font-mono">
+                        Current Browser Status: <span className="text-white font-bold">{typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'Not Supported'}</span>
+                      </span>
+                    </div>
+                  </div>
                 </div>
               ) : adminTab === 'movies' ? (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
@@ -2919,7 +2953,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
                           </div>
                           
                           {/* Gradient overlay */}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/30 opacity-75" />
+                          <div className="absolute inset-0 bg-black/40" />
                           
                           {/* Text content overlay */}
                           <div className="absolute bottom-0 left-0 right-0 p-3.5 space-y-1 text-left">
@@ -2998,7 +3032,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
         <motion.div 
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          className="space-y-4 bg-gradient-to-r from-[#0c0c0c] to-[#080808] border border-red-500/20 p-6 rounded-3xl shadow-xl"
+          className="space-y-4 bg-[#0a0a0a] border border-red-500/20 p-6 rounded-3xl shadow-xl"
         >
           <div className="flex items-center justify-between border-b border-[#1c1c1c] pb-3">
             <div className="flex items-center gap-2">
@@ -3668,7 +3702,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
                     alt={detailedMovie.title} 
                     className="w-full h-full object-cover"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0e0e0e] via-transparent to-black/30 md:hidden" />
+                  <div className="absolute inset-0 bg-[#0e0e0e]/50 md:hidden" />
                 </div>
 
                 {/* Content column */}

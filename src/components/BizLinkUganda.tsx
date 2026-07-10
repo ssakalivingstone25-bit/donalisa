@@ -12,6 +12,7 @@ import MerchantDashboard from './bizlink/MerchantDashboard';
 import AdminDashboard from './bizlink/AdminDashboard';
 import MerchantApplicationModal from './bizlink/MerchantApplicationModal';
 import ChatCenter from './bizlink/ChatCenter';
+import bizlinkLogoImg from '@/assets/images/bizlink_logo_1783424653254.jpg';
 
 interface BizLinkUgandaProps {
   currentUserId?: string;
@@ -129,19 +130,25 @@ export default function BizLinkUganda({
         <div className="space-y-6">
           {/* Header Town Area */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#14141d] pb-5">
-            <div>
-              <div className="flex items-center gap-2">
-                <Building2 className="w-6 h-6 text-cyan-400" />
-                <h1 className="text-sm font-black font-mono uppercase tracking-widest text-white sm:text-base">
-                  Kampala Digital Arcade
-                </h1>
-                <span className="px-2 py-0.5 bg-cyan-500/10 text-cyan-400 text-[8px] font-mono rounded-full font-black tracking-widest uppercase">
-                  BizLink Uganda
-                </span>
+            <div className="flex items-center gap-3">
+              <img 
+                src={bizlinkLogoImg} 
+                alt="BizLink Logo" 
+                className="w-12 h-12 object-contain rounded-xl border border-red-600/30" 
+              />
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-sm font-black font-mono uppercase tracking-widest text-white sm:text-base">
+                    Kampala Digital Arcade
+                  </h1>
+                  <span className="px-2 py-0.5 bg-red-600 text-white text-[8px] font-mono rounded font-black tracking-widest uppercase">
+                    BizLink Uganda
+                  </span>
+                </div>
+                <p className="text-[11px] text-gray-500 mt-1 font-mono">
+                  A structured commercial town renting digital spaces to approved businessman tenants.
+                </p>
               </div>
-              <p className="text-[11px] text-gray-500 mt-1 font-mono">
-                A structured commercial town renting digital spaces to approved businessman tenants.
-              </p>
             </div>
 
             {/* Dashboard and application links */}
@@ -149,7 +156,7 @@ export default function BizLinkUganda({
               {isSuperAdmin && (
                 <button
                   onClick={() => setActiveDashboard('admin')}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-black text-xs font-mono tracking-wider uppercase rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-lg shadow-purple-500/15"
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-black text-xs font-mono tracking-wider uppercase rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-md"
                 >
                   <ShieldAlert className="w-4 h-4 animate-pulse" />
                   <span>Landlord Admin</span>
@@ -159,7 +166,7 @@ export default function BizLinkUganda({
               {myShop ? (
                 <button
                   onClick={() => setActiveDashboard('merchant')}
-                  className="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-black font-black text-xs font-mono tracking-wider uppercase rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-lg shadow-cyan-500/15"
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-black text-xs font-mono tracking-wider uppercase rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-md"
                 >
                   <Briefcase className="w-4 h-4" />
                   <span>Merchant Office</span>
@@ -168,7 +175,7 @@ export default function BizLinkUganda({
                 currentUserId && currentUserId !== 'anonymous' && (
                   <button
                     onClick={() => setShowApplicationModal(true)}
-                    className="px-4 py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-black text-xs font-mono tracking-wider uppercase rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-lg shadow-yellow-500/15 animate-pulse"
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-black text-xs font-mono tracking-wider uppercase rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-md animate-pulse"
                   >
                     <Briefcase className="w-4 h-4" />
                     <span>Become a Merchant</span>
@@ -182,7 +189,7 @@ export default function BizLinkUganda({
                     setChatTarget(null);
                     setShowDirectChatOverlay(true);
                   }}
-                  className="px-4 py-2 bg-[#12121a] hover:bg-gray-800 text-cyan-400 border border-gray-800 rounded-xl text-xs font-mono font-black tracking-wider uppercase transition-all cursor-pointer flex items-center gap-1.5"
+                  className="px-4 py-2 bg-[#111116] hover:bg-gray-800 text-red-500 border border-gray-800 rounded-xl text-xs font-mono font-black tracking-wider uppercase transition-all cursor-pointer flex items-center gap-1.5"
                 >
                   <MessageCircle className="w-4 h-4" />
                   <span>Inbox</span>
@@ -192,7 +199,7 @@ export default function BizLinkUganda({
               {onClose && (
                 <button
                   onClick={onClose}
-                  className="px-4 py-2 bg-rose-600/10 hover:bg-rose-600 hover:text-white text-rose-400 border border-rose-500/20 rounded-xl text-xs font-mono font-black tracking-wider uppercase transition-all cursor-pointer flex items-center gap-1.5 shadow-lg shadow-rose-600/5"
+                  className="px-4 py-2 bg-[#111116] hover:bg-gray-800 text-red-500 border border-gray-800 rounded-xl text-xs font-mono font-black tracking-wider uppercase transition-all cursor-pointer flex items-center gap-1.5"
                   title="Return to Main Portal"
                 >
                   <X className="w-4 h-4" />
@@ -211,7 +218,7 @@ export default function BizLinkUganda({
                 placeholder="Search Kampala stores or product categories..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-[#0a0a0f] border border-gray-900 rounded-2xl pl-11 pr-4 py-3 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-cyan-500/50"
+                className="w-full bg-[#111116] border border-gray-800 rounded-2xl pl-11 pr-4 py-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-red-600 font-mono transition-colors"
               />
             </div>
 
@@ -222,8 +229,8 @@ export default function BizLinkUganda({
                   onClick={() => setSelectedCategory(cat)}
                   className={`px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold uppercase transition-all cursor-pointer border ${
                     selectedCategory === cat 
-                      ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30' 
-                      : 'bg-transparent text-gray-500 border-gray-950 hover:text-white'
+                      ? 'bg-red-600 text-white border-red-700' 
+                      : 'bg-[#111116] text-gray-400 border-gray-800 hover:bg-gray-800 hover:text-white'
                   }`}
                 >
                   {cat === 'all' ? 'All categories' : cat}
@@ -236,17 +243,17 @@ export default function BizLinkUganda({
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">Active Storefronts</span>
-              <span className="text-[10px] font-mono text-cyan-400">{filteredShops.length} verified outlets</span>
+              <span className="text-[10px] font-mono text-red-500 font-bold">{filteredShops.length} verified outlets</span>
             </div>
 
             {loading ? (
               <div className="py-20 flex flex-col items-center justify-center space-y-3">
-                <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+                <Loader2 className="w-8 h-8 text-red-600 animate-spin" />
                 <span className="text-xs font-mono text-gray-500">Connecting marketplace gateway...</span>
               </div>
             ) : filteredShops.length === 0 ? (
-              <div className="py-16 text-center space-y-3 bg-[#09090d]/30 border border-gray-900 rounded-3xl max-w-sm mx-auto">
-                <Building2 className="w-12 h-12 text-gray-800 animate-pulse mx-auto" />
+              <div className="py-16 text-center space-y-3 bg-[#0e0e14] border border-gray-800 rounded-3xl max-w-sm mx-auto">
+                <Building2 className="w-12 h-12 text-gray-700 animate-pulse mx-auto" />
                 <div>
                   <p className="text-xs font-bold text-gray-300">No Shops Found</p>
                   <p className="text-[10px] text-gray-500 leading-normal font-mono">
@@ -260,27 +267,27 @@ export default function BizLinkUganda({
                   <div 
                     key={shop.id}
                     onClick={() => setSelectedShop(shop)}
-                    className="p-5 rounded-3xl bg-[#08080c]/80 hover:bg-[#0c0c12]/80 border border-gray-950 hover:border-cyan-500/20 transition-all flex justify-between gap-4 cursor-pointer group"
+                    className="p-5 rounded-3xl bg-[#0e0e14] hover:bg-[#15151c] border border-gray-900 hover:border-red-600 transition-all flex justify-between gap-4 cursor-pointer group shadow-md"
                   >
                     <div className="flex gap-4 items-start min-w-0">
                       <img 
                         src={shop.logoUrl} 
                         alt={shop.name} 
-                        className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl object-cover border border-gray-900 shrink-0"
+                        className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl object-cover border border-gray-800 shrink-0"
                       />
                       <div className="min-w-0 space-y-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <h3 className="text-xs sm:text-sm font-bold text-white group-hover:text-cyan-400 transition-colors truncate">
+                          <h3 className="text-xs sm:text-sm font-bold text-white group-hover:text-red-500 transition-colors truncate">
                             {shop.name}
                           </h3>
                           {shop.verified && (
-                            <BadgeCheck className="w-4 h-4 text-cyan-400 shrink-0" />
+                            <BadgeCheck className="w-4 h-4 text-red-500 shrink-0" />
                           )}
                         </div>
                         <p className="text-[10px] text-gray-500 line-clamp-2 leading-relaxed">{shop.description}</p>
                         <div className="flex items-center gap-3 mt-1.5 text-[9px] text-gray-600 font-mono">
-                          <span className="flex items-center gap-0.5 text-yellow-400">
-                            <Star className="w-3 h-3 fill-current" /> {shop.rating}
+                          <span className="flex items-center gap-0.5 text-yellow-500">
+                            <Star className="w-3 h-3 fill-current animate-pulse" /> {shop.rating}
                           </span>
                           <span>• {shop.location}</span>
                         </div>
@@ -288,10 +295,10 @@ export default function BizLinkUganda({
                     </div>
 
                     <div className="flex flex-col justify-between items-end shrink-0">
-                      <span className="text-[9px] text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded font-mono font-bold tracking-wide">
+                      <span className="text-[8px] text-white bg-red-600 px-2 py-0.5 rounded font-mono font-black tracking-wider uppercase shadow">
                         ENTER
                       </span>
-                      <ArrowRight className="w-4 h-4 text-gray-700 group-hover:text-cyan-400 group-hover:translate-x-1 transition-all" />
+                      <ArrowRight className="w-4 h-4 text-gray-600 group-hover:text-red-500 group-hover:translate-x-1 transition-all" />
                     </div>
                   </div>
                 ))}

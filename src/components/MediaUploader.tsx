@@ -272,7 +272,7 @@ export const MediaUploader: React.FC<MediaUploaderProps> = ({
                   </div>
                   <div className="w-full bg-zinc-900 h-2 rounded-full overflow-hidden border border-zinc-800/30">
                     <div 
-                      className="h-full bg-gradient-to-r from-rose-500 to-pink-500 transition-all duration-300"
+                      className="h-full bg-red-600 transition-all duration-300"
                       style={{ width: `${progress || 0}%` }}
                     />
                   </div>

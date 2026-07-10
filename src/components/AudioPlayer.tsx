@@ -221,7 +221,7 @@ export default function AudioPlayer({
   return (
     <div 
       id="donalisa-premium-audio-player-container"
-      className="relative w-full max-w-4xl mx-auto overflow-hidden bg-gradient-to-b from-[#0a0f1d] to-[#04060b] border border-cyan-500/20 rounded-3xl p-6 md:p-8 shadow-2xl text-left select-none flex flex-col md:flex-row items-center gap-8 backdrop-blur-md"
+      className="relative w-full max-w-4xl mx-auto overflow-hidden bg-[#070b14] border border-cyan-500/20 rounded-3xl p-6 md:p-8 shadow-2xl text-left select-none flex flex-col md:flex-row items-center gap-8 backdrop-blur-md"
     >
       <audio
         ref={audioRef}
@@ -280,7 +280,7 @@ export default function AudioPlayer({
               {[...Array(6)].map((_, i) => (
                 <motion.div
                   key={i}
-                  className="w-1 bg-gradient-to-t from-cyan-400 to-indigo-500 rounded-full"
+                  className="w-1 bg-[#00E5FF] rounded-full"
                   animate={{
                     height: [12, Math.random() * 32 + 10, 12]
                   }}

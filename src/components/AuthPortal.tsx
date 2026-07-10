@@ -254,7 +254,7 @@ export default function AuthPortal() {
 
   return (
     <div className="max-w-md w-full bg-[#111111]/95 border border-[#222222] rounded-3xl p-8 shadow-2xl relative overflow-hidden backdrop-blur-md">
-      <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-red-600 via-[#00E5FF] to-red-600 animate-pulse" />
+      <div className="absolute top-0 left-0 right-0 h-[3px] bg-red-600 animate-pulse" />
       
       {/* Brand Header */}
       <div className="text-center space-y-2 mb-6">

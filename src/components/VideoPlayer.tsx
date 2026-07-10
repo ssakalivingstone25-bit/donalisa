@@ -803,7 +803,7 @@ export default function VideoPlayer({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/85 flex flex-col justify-between p-4 md:p-6 z-10 pointer-events-none"
+            className="absolute inset-0 bg-black/60 flex flex-col justify-between p-4 md:p-6 z-10 pointer-events-none"
           >
             {/* HEADER BAR */}
             <motion.div 

@@ -263,7 +263,7 @@ export default function ShopTemplateView({
           alt={shop.name}
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+        <div className="absolute inset-0 bg-black/50" />
         
         {/* Banner Details Overlay */}
         <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">

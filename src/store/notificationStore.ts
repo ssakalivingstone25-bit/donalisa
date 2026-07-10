@@ -9,7 +9,8 @@ import {
   onSnapshot, 
   doc, 
   updateDoc,
-  setDoc
+  setDoc,
+  deleteDoc
 } from 'firebase/firestore';
 import type { NotificationMessage, Movie } from '@/types';
 
@@ -21,6 +22,8 @@ interface NotificationState {
   addLocalNotification: (notification: Omit<NotificationMessage, 'id' | 'createdAt'>) => void;
   markAsRead: (notificationId: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
+  clearNotification: (notificationId: string) => Promise<void>;
+  clearAllNotifications: () => Promise<void>;
   initListeners: (userId: string, watchedMovieIds: string[], moviesList: Movie[]) => () => void;
 }
 
@@ -99,6 +102,47 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
           notifications: updated,
           unreadCount: 0,
         };
+      });
+    },
+
+    clearNotification: async (notificationId) => {
+      if (!notificationId.startsWith('local-')) {
+        try {
+          const docRef = doc(db, 'notifications', notificationId);
+          await deleteDoc(docRef);
+        } catch (err) {
+          console.error('Failed to delete notification in Firestore:', err);
+        }
+      }
+      set((state) => {
+        const updated = state.notifications.filter((n) => n.id !== notificationId);
+        return {
+          notifications: updated,
+          unreadCount: updated.filter((n) => !n.read).length,
+        };
+      });
+    },
+
+    clearAllNotifications: async () => {
+      const { notifications, userId } = get();
+      const promises = notifications
+        .filter((n) => !n.id.startsWith('local-') && n.userId && n.userId === userId)
+        .map((n) => {
+          const docRef = doc(db, 'notifications', n.id);
+          return deleteDoc(docRef);
+        });
+
+      if (promises.length > 0) {
+        try {
+          await Promise.all(promises);
+        } catch (err) {
+          console.error('Failed to delete all notifications in Firestore:', err);
+        }
+      }
+
+      set({
+        notifications: [],
+        unreadCount: 0,
       });
     },
 
