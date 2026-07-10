@@ -12,6 +12,7 @@ import MerchantDashboard from './bizlink/MerchantDashboard';
 import AdminDashboard from './bizlink/AdminDashboard';
 import MerchantApplicationModal from './bizlink/MerchantApplicationModal';
 import ChatCenter from './bizlink/ChatCenter';
+import AIGroundingAssistant from './bizlink/AIGroundingAssistant';
 import bizlinkLogoImg from '@/assets/images/bizlink_logo_1783424653254.jpg';
 
 interface BizLinkUgandaProps {
@@ -32,6 +33,7 @@ export default function BizLinkUganda({
   const [activeDashboard, setActiveDashboard] = useState<'none' | 'merchant' | 'admin'>('none');
   const [showApplicationModal, setShowApplicationModal] = useState(false);
   const [showDirectChatOverlay, setShowDirectChatOverlay] = useState(false);
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
 
   // Chat direct target info
   const [chatTarget, setChatTarget] = useState<{ merchantId: string; shopId: string; shopName: string } | null>(null);
@@ -186,6 +188,16 @@ export default function BizLinkUganda({
 
               {currentUserId && currentUserId !== 'anonymous' && (
                 <button
+                  onClick={() => setShowAIAssistant(true)}
+                  className="px-4 py-2 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-750 hover:to-amber-750 text-white font-black text-xs font-mono tracking-wider uppercase rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-md"
+                >
+                  <Sparkles className="w-4 h-4 text-yellow-300 animate-pulse" />
+                  <span>AI Concierge</span>
+                </button>
+              )}
+
+              {currentUserId && currentUserId !== 'anonymous' && (
+                <button
                   onClick={() => {
                     setChatTarget(null);
                     setShowDirectChatOverlay(true);
@@ -335,6 +347,17 @@ export default function BizLinkUganda({
               targetShopId={chatTarget?.shopId}
               targetMerchantId={chatTarget?.merchantId}
               targetShopName={chatTarget?.shopName}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* 4. AI GROUNDING ASSISTANT OVERLAY BOX */}
+      {showAIAssistant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="max-w-2xl w-full">
+            <AIGroundingAssistant
+              onClose={() => setShowAIAssistant(false)}
             />
           </div>
         </div>
