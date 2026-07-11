@@ -34,6 +34,7 @@ export default function BizLinkUganda({
   const [showApplicationModal, setShowApplicationModal] = useState(false);
   const [showDirectChatOverlay, setShowDirectChatOverlay] = useState(false);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
+  const [previewShop, setPreviewShop] = useState<Shop | null>(null);
 
   // Chat direct target info
   const [chatTarget, setChatTarget] = useState<{ merchantId: string; shopId: string; shopName: string } | null>(null);
@@ -45,6 +46,26 @@ export default function BizLinkUganda({
   // Filter & search states
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+
+  const categoryOptions = [
+    'all',
+    ...Array.from(new Set([
+      ...allShops.map((shop: Shop) => shop.category).filter((category: string | undefined): category is string => Boolean(category)),
+      'Electronics',
+      'Fashion',
+      'Crafts',
+      'Groceries',
+      'Restaurants',
+      'Services',
+      'Health',
+      'Beauty',
+      'Education',
+      'Travel',
+      'Real Estate',
+      'Automotive',
+      'Furniture'
+    ]))
+  ];
 
   // User's own merchant shop if they have one
   const [myShop, setMyShop] = useState<Shop | null>(null);
@@ -131,23 +152,44 @@ export default function BizLinkUganda({
   };
 
   // Filter logic
-  const filteredShops = allShops.filter(shop => {
+  const filteredShops = allShops.filter((shop: Shop) => {
     const query = searchQuery.toLowerCase();
     const matchesSearch = shop.name.toLowerCase().includes(query) ||
                           shop.description.toLowerCase().includes(query) ||
                           (shop.category?.toLowerCase().includes(query)) ||
-                          (shop.recommendedTypes?.some(type => type.toLowerCase().includes(query))) ||
-                          (shop.searchKeywords?.some(keyword => keyword.toLowerCase().includes(query)));
+                          (shop.recommendedTypes?.some((type: string) => type.toLowerCase().includes(query))) ||
+                          (shop.searchKeywords?.some((keyword: string) => keyword.toLowerCase().includes(query)));
 
-    // Check if category is match (we can match explicit category, description or recommended groups)
-    const matchesCategory = selectedCategory === 'all' || 
+    const matchesCategory = selectedCategory === 'all' ||
                             (shop.category && shop.category.toLowerCase() === selectedCategory.toLowerCase()) ||
                             shop.description.toLowerCase().includes(selectedCategory.toLowerCase()) ||
                             shop.name.toLowerCase().includes(selectedCategory.toLowerCase()) ||
-                            (shop.recommendedTypes?.some(type => type.toLowerCase() === selectedCategory.toLowerCase()));
+                            (shop.recommendedTypes?.some((type: string) => type.toLowerCase() === selectedCategory.toLowerCase()));
 
     return matchesSearch && matchesCategory;
   });
+
+  useEffect(() => {
+    if (!previewShop && allShops.length > 0) {
+      setPreviewShop(allShops[0]);
+      return;
+    }
+
+    if (previewShop && filteredShops.length > 0 && !filteredShops.some((shop) => shop.id === previewShop.id)) {
+      setPreviewShop(filteredShops[0]);
+      return;
+    }
+
+    if (!previewShop && filteredShops.length > 0) {
+      setPreviewShop(filteredShops[0]);
+    }
+
+    if (filteredShops.length === 0) {
+      setPreviewShop(null);
+    }
+  }, [allShops, filteredShops, previewShop]);
+
+  const activePreviewShop = previewShop ?? filteredShops[0] ?? allShops[0] ?? null;
 
   return (
     <div className="w-full bg-[#050508] border border-gray-900 rounded-3xl p-6 shadow-2xl relative animate-in fade-in duration-300">
@@ -268,106 +310,176 @@ export default function BizLinkUganda({
             </div>
           </div>
 
-          {/* Search bar & Category select */}
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="w-4 h-4 text-gray-500 absolute left-4 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search Kampala stores or product categories..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-[#111116] border border-gray-800 rounded-2xl pl-11 pr-4 py-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-red-600 font-mono transition-colors"
-              />
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0 overflow-x-auto pb-1">
-              {['all', 'Electronics', 'Fashion', 'Crafts', 'Groceries', 'Restaurants', 'Services'].map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold uppercase transition-all cursor-pointer border ${
-                    selectedCategory === cat 
-                      ? 'bg-red-600 text-white border-red-700' 
-                      : 'bg-[#111116] text-gray-400 border-gray-800 hover:bg-gray-800 hover:text-white'
-                  }`}
-                >
-                  {cat === 'all' ? 'All categories' : cat}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* List of Shops */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">Active Storefronts</span>
-              <span className="text-[10px] font-mono text-red-500 font-bold">{filteredShops.length} verified outlets</span>
-            </div>
-
-            {loading ? (
-              <div className="py-20 flex flex-col items-center justify-center space-y-3">
-                <Loader2 className="w-8 h-8 text-red-600 animate-spin" />
-                <span className="text-xs font-mono text-gray-500">Connecting marketplace gateway...</span>
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="space-y-6">
+              {/* Search bar */}
+              <div className="relative">
+                <Search className="w-4 h-4 text-gray-500 absolute left-4 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search Kampala stores or product categories..."
+                  value={searchQuery}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                  className="w-full bg-[#111116] border border-gray-800 rounded-2xl pl-11 pr-4 py-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-red-600 font-mono transition-colors"
+                />
               </div>
-            ) : filteredShops.length === 0 ? (
-              <div className="py-16 text-center space-y-3 bg-[#0e0e14] border border-gray-800 rounded-3xl max-w-sm mx-auto">
-                <Building2 className="w-12 h-12 text-gray-700 animate-pulse mx-auto" />
-                <div>
-                  <p className="text-xs font-bold text-gray-300">No Shops Found</p>
-                  <p className="text-[10px] text-gray-500 leading-normal font-mono">
-                    Search query returned empty. Switch filters or register your own storefront to start trading.
-                  </p>
+
+              {/* List of Shops */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">Active Storefronts</span>
+                  <span className="text-[10px] font-mono text-red-500 font-bold">{filteredShops.length} verified outlets</span>
                 </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {filteredShops.map((shop) => (
-                  <div 
-                    key={shop.id}
-                    onClick={() => setSelectedShop(shop)}
-                    className="p-5 rounded-3xl bg-[#0e0e14] hover:bg-[#15151c] border border-gray-900 hover:border-red-600 transition-all flex justify-between gap-4 cursor-pointer group shadow-md"
-                  >
-                    <div className="flex gap-4 items-start min-w-0">
-                      <img 
-                        src={shop.logoUrl} 
-                        alt={shop.name} 
-                        className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl object-cover border border-gray-800 shrink-0"
-                      />
-                      <div className="min-w-0 space-y-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <h3 className="text-xs sm:text-sm font-bold text-white group-hover:text-red-500 transition-colors truncate">
-                            {shop.name}
-                          </h3>
-                          {shop.verified && (
-                            <BadgeCheck className="w-4 h-4 text-red-500 shrink-0" />
-                          )}
-                        </div>
-                        <p className="text-[10px] text-gray-500 line-clamp-2 leading-relaxed">{shop.description}</p>
-                        <div className="flex items-center gap-3 mt-1.5 text-[9px] text-gray-600 font-mono">
-                          <span className="flex items-center gap-0.5 text-yellow-500">
-                            <Star className="w-3 h-3 fill-current animate-pulse" /> {shop.rating}
-                          </span>
-                          <span>• {shop.location}</span>
-                        </div>
-                        {shop.recommendedTypes?.length ? (
-                          <div className="mt-2 text-[9px] text-gray-400 uppercase tracking-[0.25em] font-bold">
-                            Recommended for: {shop.recommendedTypes.join(', ')}
-                          </div>
-                        ) : null}
+
+                {loading ? (
+                  <div className="py-20 flex flex-col items-center justify-center space-y-3">
+                    <Loader2 className="w-8 h-8 text-red-600 animate-spin" />
+                    <span className="text-xs font-mono text-gray-500">Connecting marketplace gateway...</span>
+                  </div>
+                ) : filteredShops.length === 0 ? (
+                  <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+                    <div className="py-16 text-center space-y-3 bg-[#0e0e14] border border-gray-800 rounded-3xl max-w-sm mx-auto w-full">
+                      <Building2 className="w-12 h-12 text-gray-700 animate-pulse mx-auto" />
+                      <div>
+                        <p className="text-xs font-bold text-gray-300">No Matching Shops</p>
+                        <p className="text-[10px] text-gray-500 leading-normal font-mono">
+                          The current filter is empty, but the live storefront preview below is still available for browsing.
+                        </p>
                       </div>
                     </div>
 
-                    <div className="flex flex-col justify-between items-end shrink-0">
-                      <span className="text-[8px] text-white bg-red-600 px-2 py-0.5 rounded font-mono font-black tracking-wider uppercase shadow">
-                        ENTER
-                      </span>
-                      <ArrowRight className="w-4 h-4 text-gray-600 group-hover:text-red-500 group-hover:translate-x-1 transition-all" />
-                    </div>
+                    {activePreviewShop ? (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedShop(activePreviewShop)}
+                        className="w-full rounded-3xl border border-red-600/20 bg-[#0e0e14] p-3 text-left shadow-md hover:border-red-600 transition-all"
+                      >
+                        <div className="relative overflow-hidden rounded-2xl">
+                          <img src={activePreviewShop.bannerUrl} alt={activePreviewShop.name} className="h-36 w-full object-cover" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+                          <div className="absolute bottom-3 left-3 right-3 flex items-center gap-2">
+                            <img src={activePreviewShop.logoUrl} alt={activePreviewShop.name} className="h-10 w-10 rounded-xl border border-white/10 object-cover" />
+                            <div>
+                              <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-red-400">Live preview</p>
+                              <h3 className="text-sm font-black text-white">{activePreviewShop.name}</h3>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          <p className="text-[10px] uppercase tracking-[0.3em] text-gray-500">{activePreviewShop.category || 'Business'}</p>
+                          <p className="text-xs text-gray-400 line-clamp-2">{activePreviewShop.description}</p>
+                          <div className="flex items-center justify-between text-[10px] text-red-500 font-mono font-bold">
+                            <span>Open storefront</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </div>
+                        </div>
+                      </button>
+                    ) : null}
                   </div>
-                ))}
+                ) : (
+                  <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {filteredShops.map((shop: Shop) => (
+                        <div 
+                          key={shop.id}
+                          onClick={() => setPreviewShop(shop)}
+                          className="p-5 rounded-3xl bg-[#0e0e14] hover:bg-[#15151c] border border-gray-900 hover:border-red-600 transition-all flex justify-between gap-4 cursor-pointer group shadow-md"
+                        >
+                          <div className="flex gap-4 items-start min-w-0">
+                            <img 
+                              src={shop.logoUrl} 
+                              alt={shop.name} 
+                              className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl object-cover border border-gray-800 shrink-0"
+                            />
+                            <div className="min-w-0 space-y-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <h3 className="text-xs sm:text-sm font-bold text-white group-hover:text-red-500 transition-colors truncate">
+                                  {shop.name}
+                                </h3>
+                                {shop.verified && (
+                                  <BadgeCheck className="w-4 h-4 text-red-500 shrink-0" />
+                                )}
+                              </div>
+                              <p className="text-[10px] text-gray-500 line-clamp-2 leading-relaxed">{shop.description}</p>
+                              <div className="flex items-center gap-3 mt-1.5 text-[9px] text-gray-600 font-mono">
+                                <span className="flex items-center gap-0.5 text-yellow-500">
+                                  <Star className="w-3 h-3 fill-current animate-pulse" /> {shop.rating}
+                                </span>
+                                <span>• {shop.location}</span>
+                              </div>
+                              {shop.recommendedTypes?.length ? (
+                                <div className="mt-2 text-[9px] text-gray-400 uppercase tracking-[0.25em] font-bold">
+                                  Recommended for: {shop.recommendedTypes.join(', ')}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col justify-between items-end shrink-0">
+                            <span className="text-[8px] text-white bg-red-600 px-2 py-0.5 rounded font-mono font-black tracking-wider uppercase shadow">
+                              PREVIEW
+                            </span>
+                            <ArrowRight className="w-4 h-4 text-gray-600 group-hover:text-red-500 group-hover:translate-x-1 transition-all" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <aside className="space-y-4">
+                      <div className="rounded-3xl border border-gray-900 bg-[#0e0e14] p-4">
+                        <div className="mb-3 flex items-center justify-between">
+                          <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-gray-500">Business categories</p>
+                          <span className="text-[10px] font-mono text-red-500">{categoryOptions.length - 1}</span>
+                        </div>
+                        <div className="space-y-2">
+                          {categoryOptions.map((cat) => (
+                            <button
+                              key={cat}
+                              onClick={() => setSelectedCategory(cat)}
+                              className={`w-full rounded-2xl px-3 py-2 text-left text-[11px] font-mono font-bold uppercase transition-all border ${
+                                selectedCategory === cat
+                                  ? 'bg-red-600 text-white border-red-700'
+                                  : 'bg-[#111116] text-gray-400 border-gray-800 hover:bg-gray-800 hover:text-white'
+                              }`}
+                            >
+                              {cat === 'all' ? 'All categories' : cat}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {activePreviewShop ? (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedShop(activePreviewShop)}
+                          className="w-full rounded-3xl border border-red-600/20 bg-[#0e0e14] p-3 text-left shadow-md hover:border-red-600 transition-all"
+                        >
+                          <div className="relative overflow-hidden rounded-2xl">
+                            <img src={activePreviewShop.bannerUrl} alt={activePreviewShop.name} className="h-32 w-full object-cover" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+                            <div className="absolute bottom-3 left-3 right-3 flex items-center gap-2">
+                              <img src={activePreviewShop.logoUrl} alt={activePreviewShop.name} className="h-9 w-9 rounded-lg border border-white/10 object-cover" />
+                              <div>
+                                <p className="text-[9px] font-mono uppercase tracking-[0.25em] text-red-400">Store preview</p>
+                                <h3 className="text-sm font-black text-white">{activePreviewShop.name}</h3>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-3 space-y-2">
+                            <p className="text-[10px] uppercase tracking-[0.3em] text-gray-500">{activePreviewShop.category || 'Business'}</p>
+                            <p className="text-xs text-gray-400 line-clamp-2">{activePreviewShop.description}</p>
+                            <div className="flex items-center justify-between text-[10px] text-red-500 font-mono font-bold">
+                              <span>Open storefront</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </div>
+                          </div>
+                        </button>
+                      ) : null}
+                    </aside>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
       )}

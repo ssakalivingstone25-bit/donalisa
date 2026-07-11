@@ -609,11 +609,12 @@ const TemplateBuilder = ({
   };
 
   const handleDuplicate = () => {
-    const duplicated = {
+    const duplicated: BuilderTemplateState = {
       ...template,
       id: undefined,
       name: `${template.name} Copy`,
-      status: 'draft'
+      status: 'draft',
+      storeStatus: 'draft'
     };
     setTemplate(duplicated);
     setSaveMessage('Duplicated locally; save as a new template.');

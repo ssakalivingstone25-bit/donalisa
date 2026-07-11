@@ -256,7 +256,6 @@ function MovieCard({
               muted
               loop
               playsInline
-              referrerPolicy="no-referrer"
               className="w-full h-full object-cover pointer-events-none"
             />
           </motion.div>
@@ -418,8 +417,8 @@ function MovieCard({
 }
 
 interface StreamingPortalProps {
-  activeTab?: 'catalog' | 'profile' | 'admin_dashboard' | 'downloads';
-  setActiveTab?: (tab: 'catalog' | 'profile' | 'admin_dashboard' | 'downloads') => void;
+  activeTab?: 'catalog' | 'profile' | 'admin_dashboard' | 'downloads' | 'bizlink';
+  setActiveTab?: (tab: 'catalog' | 'profile' | 'admin_dashboard' | 'downloads' | 'bizlink') => void;
 }
 
 export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPortalProps = {}) {
@@ -428,7 +427,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
   const { searchQuery, setSearchQuery } = useSearchStore();
   const { initListeners } = useNotificationStore();
 
-  const [localActiveTab, setLocalActiveTab] = useState<'catalog' | 'profile' | 'admin_dashboard' | 'downloads'>('catalog');
+  const [localActiveTab, setLocalActiveTab] = useState<'catalog' | 'profile' | 'admin_dashboard' | 'downloads' | 'bizlink'>('catalog');
   const activePortalTab = activeTab !== undefined ? activeTab : localActiveTab;
   const setActivePortalTab = setActiveTab !== undefined ? setActiveTab : setLocalActiveTab;
   const [movies, setMovies] = useState<Movie[]>([]);
@@ -760,7 +759,7 @@ export default function StreamingPortal({ activeTab, setActiveTab }: StreamingPo
   const [customDuration, setCustomDuration] = useState<number>(360);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadStep, setUploadStep] = useState<'idle' | 'poster' | 'video' | 'saving'>('idle');
+  const [uploadStep, setUploadStep] = useState<'idle' | 'poster' | 'video' | 'audio' | 'saving'>('idle');
 
   const handleVideoFileChange = (file: File | null) => {
     setCustomVideoFile(file);
