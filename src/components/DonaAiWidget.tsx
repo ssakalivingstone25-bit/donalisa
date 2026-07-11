@@ -19,6 +19,7 @@ export default function DonaAiWidget() {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [isReasoningMode, setIsReasoningMode] = useState(false);
   const [isSpeechSupported, setIsSpeechSupported] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -100,13 +101,33 @@ export default function DonaAiWidget() {
     setIsLoading(true);
 
     try {
-      const replyText = await OpenAIService.donaAI(updatedMessages);
+      let replyText = '';
+      if (isReasoningMode) {
+        const response = await fetch('/api/gemini/think', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: updatedMessages })
+        });
+        if (!response.ok) {
+          throw new Error('Gemini Deep Thinking endpoint failed');
+        }
+        const data = await response.json();
+        if (data.success) {
+          replyText = data.text;
+        } else {
+          throw new Error(data.error || 'Deep thinking failed');
+        }
+      } else {
+        replyText = await OpenAIService.donaAI(updatedMessages);
+      }
       setMessages(prev => [...prev, { role: 'assistant', content: replyText }]);
     } catch (err) {
       console.error('Error talking to DONA AI:', err);
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: "Oh dear, I had trouble connecting to my central operational gateway. Please double check that the admin has added the OPENAI_API_KEY in Settings."
+        content: isReasoningMode 
+          ? "Oh dear, I had trouble connecting to my high-reasoning Gemini engine. Please double check that the admin has added the GEMINI_API_KEY in Settings."
+          : "Oh dear, I had trouble connecting to my central operational gateway. Please double check that the admin has added the OPENAI_API_KEY in Settings."
       }]);
     } finally {
       setIsLoading(false);
@@ -133,9 +154,15 @@ export default function DonaAiWidget() {
                 <div>
                   <h3 className="text-xs font-extrabold tracking-wider text-white font-mono flex items-center gap-1.5">
                     DONA AI
-                    <span className="text-[8px] bg-cyan-950 text-cyan-400 px-1.5 py-0.5 rounded-full border border-cyan-500/20 uppercase font-black tracking-widest animate-pulse">
-                      Live Help
-                    </span>
+                    {isReasoningMode ? (
+                      <span className="text-[8px] bg-amber-950 text-amber-400 px-1.5 py-0.5 rounded-full border border-amber-500/20 uppercase font-black tracking-widest flex items-center gap-1 animate-pulse">
+                        Reasoning
+                      </span>
+                    ) : (
+                      <span className="text-[8px] bg-cyan-950 text-cyan-400 px-1.5 py-0.5 rounded-full border border-cyan-500/20 uppercase font-black tracking-widest animate-pulse">
+                        Live Help
+                      </span>
+                    )}
                   </h3>
                   <p className="text-[10px] text-zinc-500 font-mono">Kampala Premium Assistant</p>
                 </div>
@@ -206,6 +233,25 @@ export default function DonaAiWidget() {
                 </div>
               </div>
             )}
+
+            {/* Reasoning Toggle bar */}
+            <div className="px-4 py-1.5 bg-[#09090b] border-t border-[#1a1a1f] flex items-center justify-between text-[10px] font-mono">
+              <span className="text-zinc-500 flex items-center gap-1">
+                <Sparkles className={`w-3 h-3 ${isReasoningMode ? 'text-amber-500 animate-spin' : 'text-zinc-500'}`} />
+                {isReasoningMode ? "Deep Reasoning Mode active" : "Standard Model active"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsReasoningMode(!isReasoningMode)}
+                className={`px-2 py-0.5 rounded border transition-all cursor-pointer ${
+                  isReasoningMode
+                    ? 'bg-amber-950/40 text-amber-400 border-amber-500/30'
+                    : 'bg-zinc-900 text-zinc-400 border-[#222] hover:text-zinc-200'
+                }`}
+              >
+                {isReasoningMode ? "Disable Think" : "Enable Deep Think"}
+              </button>
+            </div>
 
             {/* Input Footer */}
             <div className="p-3 border-t border-[#222] bg-[#0a0a0c] flex items-center gap-2">

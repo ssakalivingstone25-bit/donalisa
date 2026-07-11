@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { spawn, execSync } from 'child_process';
 import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import { OpenAI } from 'openai';
 
 // Singleton BroadcastEngine Service
@@ -311,6 +311,46 @@ async function startServer() {
         text: `${fallbackText}\n\n*(Note: High-Fidelity Local Grounding Sandbox active. Install or upgrade your GEMINI_API_KEY to switch to Live Satellite layers.)*`,
         groundingChunks: fallbackChunks
       });
+    }
+  });
+
+  // Google Gemini Deep Thinking / Reasoning API Route
+  app.post('/api/gemini/think', async (req, res) => {
+    const { messages } = req.body;
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: 'Missing or invalid parameter: messages' });
+    }
+
+    const systemInstruction = `You are DONA AI in Reasoning Mode, an ultra-premium assistant powered by high-thinking model gemini-3.1-pro-preview.
+You specialize in solving highly complex queries, deeply structured analysis, business plans, and intricate multi-step tasks.
+Maintain hospitality, warm Ugandan vibes, and absolute clarity in all explanations.`;
+
+    try {
+      const gemini = getGenAI();
+      const contents = messages
+        .filter(m => m.role !== 'system')
+        .map(m => ({
+          role: m.role === 'assistant' || m.role === 'model' ? 'model' : 'user',
+          parts: [{ text: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }]
+        }));
+
+      const response = await gemini.models.generateContent({
+        model: 'gemini-3.1-pro-preview',
+        contents,
+        config: {
+          systemInstruction,
+          thinkingLevel: ThinkingLevel.HIGH
+        }
+      });
+
+      const responseText = response.text || '';
+      res.json({
+        success: true,
+        text: responseText
+      });
+    } catch (err: any) {
+      console.error("Gemini Deep Thinking failed:", err.message || err);
+      res.status(500).json({ error: err.message || 'Gemini Deep Thinking failed' });
     }
   });
 
