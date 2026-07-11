@@ -46,6 +46,21 @@ export interface Shop {
   satisfactionRate: number; // e.g. 95
   mtnNumber?: string;
   airtelNumber?: string;
+  publishedAt?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  seoKeywords?: string[];
+  searchKeywords?: string[];
+  analytics?: {
+    publishedAt: string;
+    views: number;
+    clicks: number;
+    orders: number;
+    conversions: number;
+    reviews: number;
+  };
+  reviewsEnabled?: boolean;
+  recommendedTypes?: string[];
   createdAt: string;
 }
 

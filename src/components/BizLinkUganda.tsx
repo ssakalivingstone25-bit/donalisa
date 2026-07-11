@@ -132,14 +132,19 @@ export default function BizLinkUganda({
 
   // Filter logic
   const filteredShops = allShops.filter(shop => {
-    const matchesSearch = shop.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          shop.description.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    // Check if category is match (we can match explicit category, description or template style)
+    const query = searchQuery.toLowerCase();
+    const matchesSearch = shop.name.toLowerCase().includes(query) ||
+                          shop.description.toLowerCase().includes(query) ||
+                          (shop.category?.toLowerCase().includes(query)) ||
+                          (shop.recommendedTypes?.some(type => type.toLowerCase().includes(query))) ||
+                          (shop.searchKeywords?.some(keyword => keyword.toLowerCase().includes(query)));
+
+    // Check if category is match (we can match explicit category, description or recommended groups)
     const matchesCategory = selectedCategory === 'all' || 
                             (shop.category && shop.category.toLowerCase() === selectedCategory.toLowerCase()) ||
                             shop.description.toLowerCase().includes(selectedCategory.toLowerCase()) ||
-                            shop.name.toLowerCase().includes(selectedCategory.toLowerCase());
+                            shop.name.toLowerCase().includes(selectedCategory.toLowerCase()) ||
+                            (shop.recommendedTypes?.some(type => type.toLowerCase() === selectedCategory.toLowerCase()));
 
     return matchesSearch && matchesCategory;
   });
@@ -345,6 +350,11 @@ export default function BizLinkUganda({
                           </span>
                           <span>• {shop.location}</span>
                         </div>
+                        {shop.recommendedTypes?.length ? (
+                          <div className="mt-2 text-[9px] text-gray-400 uppercase tracking-[0.25em] font-bold">
+                            Recommended for: {shop.recommendedTypes.join(', ')}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
 
