@@ -26,6 +26,7 @@ import AuthPortal from './components/AuthPortal';
 import BizLinkUganda from './components/BizLinkUganda';
 import DonaAiWidget from './components/DonaAiWidget';
 import logoImg from '@/assets/images/donalisa_logo_1782938170546.jpg';
+import { Analytics } from '@vercel/analytics/react';
 
 export default function App() {
   const { user, loading, initialized, setUser, setLoading, setInitialized } = useAuthStore();
@@ -866,6 +867,7 @@ export default function App() {
         </AnimatePresence>
       </footer>
       {user && <DonaAiWidget />}
+      <Analytics />
     </div>
   );
 }
