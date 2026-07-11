@@ -8,7 +8,7 @@ import {
   CheckCircle2, Server, Smartphone, Database, Lock, Cloud, 
   Bell, Sparkles, Terminal, FileCode, Check, ArrowRight,
   Flame, Key, HardDrive, Cpu, AlertCircle, Tv, LogOut, User,
-  Loader2, Search, Facebook, Twitter, Youtube, Trash2, X
+  Loader2, Search, Facebook, Twitter, Youtube, Trash2, X, Download
 } from 'lucide-react';
 import { auth, db, firebaseConfig } from '@/firebase/config';
 import { handleFirestoreError, OperationType } from '@/lib/firestoreErrors';
@@ -24,6 +24,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import StreamingPortal from './components/StreamingPortal';
 import AuthPortal from './components/AuthPortal';
 import BizLinkUganda from './components/BizLinkUganda';
+import DonaAiWidget from './components/DonaAiWidget';
 import logoImg from '@/assets/images/donalisa_logo_1782938170546.jpg';
 
 export default function App() {
@@ -31,7 +32,15 @@ export default function App() {
   const { searchQuery, setSearchQuery } = useSearchStore();
   const { notifications, unreadCount, markAsRead, markAllAsRead, clearNotification, clearAllNotifications } = useNotificationStore();
   const { playMovie } = usePlayerStore();
-  const { initPwaListeners } = usePwaStore();
+  const { initPwaListeners, isInstallable, isInstalled, installApp } = usePwaStore();
+  const [showInstallInvite, setShowInstallInvite] = useState(true);
+
+  useEffect(() => {
+    const dismissed = localStorage.getItem('donalisa_pwa_dismissed') === 'true';
+    if (dismissed) {
+      setShowInstallInvite(false);
+    }
+  }, []);
 
   const [showDevPanel, setShowDevPanel] = useState(false);
   const [activeTab, setActiveTab] = useState<'init' | 'firebase' | 'collections' | 'storage' | 'security' | 'testing'>('firebase');
@@ -425,6 +434,60 @@ export default function App() {
         {/* Primary Page Content */}
         {user ? (
           <main className="max-w-7xl mx-auto px-6 pt-8 space-y-6">
+            {/* PWA Install Invite Banner */}
+            {isInstallable && !isInstalled && showInstallInvite && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-red-950 via-zinc-900 to-cyan-950 border border-red-500/30 p-5 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-4"
+              >
+                {/* Glow decorations */}
+                <div className="absolute -left-12 -top-12 w-40 h-40 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute -right-12 -bottom-12 w-40 h-40 bg-cyan-400/10 rounded-full blur-3xl pointer-events-none" />
+
+                <div className="flex items-center gap-4 relative z-10">
+                  <div className="w-12 h-12 rounded-xl bg-black border border-[#222] flex items-center justify-center shrink-0 shadow-lg shadow-red-600/20">
+                    <img src="/logo.jpg" alt="Donalisa logo" className="w-10 h-10 rounded-lg object-cover" />
+                  </div>
+                  <div className="space-y-1 text-left">
+                    <h3 className="text-sm font-bold text-white tracking-wide font-mono flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-amber-400" />
+                      INSTALL DONALISA APP
+                    </h3>
+                    <p className="text-xs text-zinc-400 max-w-xl">
+                      Get instant access to offline streaming, zero buffer movies, local music, and the BizLink Merchant network with a faster standalone desktop/mobile experience!
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 relative z-10 w-full md:w-auto shrink-0 justify-end">
+                  <button
+                    onClick={async () => {
+                      const success = await installApp();
+                      if (success) {
+                        setShowInstallInvite(false);
+                      }
+                    }}
+                    className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-5 py-2 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/30 transition-all cursor-pointer h-9 font-mono animate-pulse"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Install PWA</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowInstallInvite(false);
+                      localStorage.setItem('donalisa_pwa_dismissed', 'true');
+                    }}
+                    className="p-2.5 bg-[#111] hover:bg-[#222] border border-[#222] text-zinc-500 hover:text-white rounded-xl transition-all cursor-pointer"
+                    title="Dismiss"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
             {activePortalTab === 'bizlink' ? (
               <BizLinkUganda 
                 currentUserId={user.uid}
@@ -802,6 +865,7 @@ export default function App() {
           )}
         </AnimatePresence>
       </footer>
+      {user && <DonaAiWidget />}
     </div>
   );
 }

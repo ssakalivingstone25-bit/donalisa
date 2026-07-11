@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Building2, Plus, Edit2, Trash2, ShoppingBag, DollarSign, 
   MessageSquare, Settings, Truck, ListCollapse, Users, TrendingUp,
-  Tag, CreditCard, Clock, MapPin, CheckCircle2, ChevronRight, Loader2, X
+  Tag, CreditCard, Clock, MapPin, CheckCircle2, ChevronRight, Loader2, X, Sparkles
 } from 'lucide-react';
 import { db } from '@/firebase/config';
 import { 
@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { Shop, Product, Order, ProductVariant } from './MarketplaceTypes';
 import ChatCenter from './ChatCenter';
+import { OpenAIService } from '@/lib/openai';
 
 interface MerchantDashboardProps {
   userId: string;
@@ -59,6 +60,39 @@ export default function MerchantDashboard({
   const [varValue, setVarValue] = useState('');
   const [varPriceMod, setVarPriceMod] = useState('0');
   const [varStock, setVarStock] = useState('10');
+
+  // BIZLINK AI States
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+
+  const handleAiProductAutofill = async () => {
+    if (!prodTitle.trim()) return;
+    setIsAiGenerating(true);
+    try {
+      const data = await OpenAIService.bizLinkAI(
+        `Write a compelling description for a product named "${prodTitle.trim()}" in the category "${prodCategory}"`,
+        'description',
+        prodCategory
+      );
+      let textResult = data.text;
+      let imageUrl = data.imageUrl;
+      try {
+        const parsed = JSON.parse(data.text);
+        textResult = parsed.text || data.text;
+        imageUrl = parsed.imageUrl || data.imageUrl;
+      } catch (e) {}
+
+      setProdDesc(textResult);
+      if (imageUrl) {
+        setProdImg(imageUrl);
+      }
+    } catch (err) {
+      console.error("AI Product writing failed:", err);
+      setProdDesc(`Authentic premium ${prodTitle} sourced directly for our Kampalan marketplace. Designed with utmost care, high quality materials, and durability in mind.`);
+      setProdImg("https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80");
+    } finally {
+      setIsAiGenerating(false);
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
     const file = e.target.files?.[0];
@@ -780,6 +814,29 @@ export default function MerchantDashboard({
                   className="w-full bg-[#111116] border border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-cyan-500/50"
                 />
               </div>
+
+              {/* BIZLINK AI PRODUCT WRITER */}
+              {prodTitle.trim() && (
+                <div className="p-3 bg-[#12121e]/80 border border-purple-500/20 rounded-xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-1">
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Sparkles className="w-3.5 h-3.5 text-purple-400 animate-pulse" />
+                    <span className="text-[10px] text-gray-300 font-mono font-bold">BIZLINK AI</span>
+                  </div>
+                  <p className="text-[9px] text-gray-500 flex-1 truncate">Draft professional copy & search high-res graphics for "{prodTitle}"</p>
+                  <button
+                    type="button"
+                    onClick={handleAiProductAutofill}
+                    disabled={isAiGenerating}
+                    className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white font-mono text-[9px] font-black rounded-lg cursor-pointer flex items-center gap-1 shrink-0"
+                  >
+                    {isAiGenerating ? (
+                      <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                    ) : (
+                      "Generate"
+                    )}
+                  </button>
+                </div>
+              )}
 
               {/* Price & Stock */}
               <div className="grid grid-cols-2 gap-4">

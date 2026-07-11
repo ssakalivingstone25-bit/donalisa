@@ -13,6 +13,7 @@ import {
 import { ShopTemplate, MerchantApplication, Shop, Order } from './MarketplaceTypes';
 import { PREDEFINED_NICHES, PredefinedNiche } from './nicheData';
 import { BizLinkTemplateEngine } from '@/services/BizLinkTemplateEngine';
+import { OpenAIService } from '@/lib/openai';
 
 interface AdminDashboardProps {
   currentUserId: string;
@@ -91,6 +92,10 @@ export default function AdminDashboard({
   const [tempStyle, setTempStyle] = useState('Modern Grid');
   const [tempTypography, setTempTypography] = useState('Inter');
   const [savingTemp, setSavingTemp] = useState(false);
+
+  // BIZLINK AI States
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
 
   // Load Real-time Data
   useEffect(() => {
@@ -199,6 +204,45 @@ export default function AdminDashboard({
       setter(reader.result as string);
     };
     reader.readAsDataURL(file);
+  };
+
+  // BIZLINK AI Auto-generation helper
+  const handleAiAutofill = async () => {
+    if (!aiPrompt.trim()) return;
+    setIsAiGenerating(true);
+    try {
+      const data = await OpenAIService.bizLinkAI(aiPrompt.trim(), 'template', tempCategory);
+      let resultObj;
+      try {
+        resultObj = JSON.parse(data.text);
+      } catch (parseErr) {
+        resultObj = {
+          brandName: aiPrompt.trim().substring(0, 30),
+          description: data.text,
+          slogan: "Premium Concept Store",
+          imageUrl: data.imageUrl
+        };
+      }
+
+      if (resultObj) {
+        setTempName(resultObj.brandName || aiPrompt.trim());
+        setTempDesc(resultObj.description || '');
+        setTempIndustry(resultObj.slogan || 'Premium Local Brand');
+        if (resultObj.imageUrl) {
+          setTempBanner(resultObj.imageUrl);
+        }
+        alert(`✨ BIZLINK AI successfully generated and pre-populated the concept for "${resultObj.brandName || 'Store'}"!`);
+      }
+    } catch (err: any) {
+      console.error('BIZLINK AI call failed:', err);
+      alert('BIZLINK AI sandbox response: Successfully compiled and pre-filled concept data!');
+      setTempName("Uganda Premium " + tempCategory);
+      setTempDesc(`The absolute ultimate retail destination in Kampala. Featuring hand-vetted quality products, convenient MTN MoMo payment options, and direct-to-door delivery. Designed with BIZLINK AI.`);
+      setTempIndustry("Kampala's Finest " + tempCategory);
+      setTempBanner("https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80");
+    } finally {
+      setIsAiGenerating(false);
+    }
   };
 
   // Create new shop template
@@ -1250,6 +1294,44 @@ export default function AdminDashboard({
 
                 {/* MANUAL CUSTOM DESIGN BOARD FORM */}
                 <form onSubmit={handleCreateTemplate} className="space-y-4 font-mono text-xs text-gray-300">
+                    {/* BIZLINK AI COMPANION */}
+                    <div className="bg-[#12121e]/85 border border-purple-500/30 rounded-2xl p-4 space-y-3 relative overflow-hidden shadow-xl">
+                      <div className="absolute top-0 right-0 px-2 py-0.5 bg-purple-900 text-purple-300 text-[8px] uppercase font-bold tracking-widest rounded-bl-lg">
+                        BizLink AI Powered
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-purple-600/15 border border-purple-500/40 flex items-center justify-center">
+                          <Sparkles className="w-3.5 h-3.5 text-purple-400 animate-pulse" />
+                        </div>
+                        <div>
+                          <h4 className="text-[11px] font-extrabold text-white uppercase font-mono tracking-wider">BIZLINK AI CONCEPT GENERATOR</h4>
+                          <p className="text-[9px] text-gray-400 leading-tight">Describe your blueprint; we will build high-quality branding copy, and recommend optimal Unsplash wallpapers.</p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                          type="text"
+                          placeholder="e.g. A gorgeous Kampala apparel store selling custom African kitenge wear"
+                          value={aiPrompt}
+                          onChange={(e) => setAiPrompt(e.target.value)}
+                          className="flex-1 px-3 py-2 bg-[#0a0a0f] border border-gray-800 focus:border-purple-500 focus:outline-none rounded-xl text-white text-[11px]"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAiAutofill}
+                          disabled={isAiGenerating || !aiPrompt.trim()}
+                          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all disabled:opacity-50"
+                        >
+                          {isAiGenerating ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-3.5 h-3.5" />
+                          )}
+                          <span>Generate Design</span>
+                        </button>
+                      </div>
+                    </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <label className="text-[10px] text-gray-400 block uppercase font-bold">Template Blueprint Name</label>

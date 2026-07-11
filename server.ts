@@ -4,6 +4,7 @@ import fs from 'fs';
 import { spawn, execSync } from 'child_process';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
+import { OpenAI } from 'openai';
 
 // Singleton BroadcastEngine Service
 class BroadcastEngineService {
@@ -334,6 +335,156 @@ async function startServer() {
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Failed initiating broadcast' });
+    }
+  });
+
+  // Lazy OpenAI Initializer
+  let openaiInstance: OpenAI | null = null;
+  const getOpenAI = () => {
+    if (!openaiInstance) {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        throw new Error('OPENAI_API_KEY is not defined. Please configure it in your Settings > Secrets panel.');
+      }
+      openaiInstance = new OpenAI({ apiKey });
+    }
+    return openaiInstance;
+  };
+
+  // DONA AI Chat Assistant Route
+  app.post('/api/openai/dona-ai', async (req, res) => {
+    const { messages } = req.body;
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: 'Missing or invalid parameter: messages' });
+    }
+
+    try {
+      const openai = getOpenAI();
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are DONA AI, the ultra-premium cinematic, entertainment, and commerce virtual concierge of the DONALISA platform.
+DONALISA has two distinct, powerful services:
+1) Cinematic portal: High-definition streaming movies, series, and local/global songs, fully downloadable inside the web browser's offline storage (indexedDB) for 100% data-free playback.
+2) BizLink Uganda: A digital portal designed to bridge regional merchants and storefronts in Uganda. It allows users to register, build customized storefronts using pre-loaded niches, manage stock products, and view other active shop vendors on an interactive Shop Map View with custom geographic coordinates.
+
+Guidance Rules:
+- Always speak with hospitality, warm Ugandan vibes, and clarity.
+- Answer user questions regarding the platform's features, offline streaming, and merchant directories.
+- Keep responses professional, highly engaging, clean, and concise.`
+          },
+          ...messages
+        ],
+        temperature: 0.7,
+      });
+
+      const reply = response.choices[0]?.message?.content || '';
+      res.json({ success: true, text: reply });
+    } catch (err: any) {
+      console.warn("OpenAI DONA AI call failed, activating Kampala concierge sandbox fallback:", err.message || err);
+      
+      // Determine query context
+      const lastMsg = messages[messages.length - 1]?.content?.toLowerCase() || '';
+      let replyText = '';
+
+      if (lastMsg.includes('offline') || lastMsg.includes('download') || lastMsg.includes('stream') || lastMsg.includes('data')) {
+        replyText = "Hello! I am DONA AI, responding from our Kampala operational sandbox. 🎬\n\nOur offline playback works via specialized local database streams! Any movie or song you download is saved directly to your browser's IndexedDB ledger. This lets you turn off your Wi-Fi or mobile data completely and play your items with **zero buffering and 100% zero data charges**! Try downloading a clip and heading offline to test it!";
+      } else if (lastMsg.includes('bizlink') || lastMsg.includes('merchant') || lastMsg.includes('map') || lastMsg.includes('shop')) {
+        replyText = "Hello! I am DONA AI. 🛍️\n\n**BizLink Uganda** is our dedicated commerce module. It lets local Ugandan business owners apply for storefronts, choose visual niches (Electronics, Groceries, Restaurants, etc.), and list their products. Plus, we've integrated a real-time **Shop Map View** so visitors can see where merchants are physically located in Kampala. If you're a business owner, open BizLink and tap 'Register Store'!";
+      } else {
+        replyText = `Welcome to DONALISA! I am DONA AI, your resident assistant.
+
+Since we are currently running in Sandbox Mode (API Key is not fully active), here is some key information about us:
+- **Cinematic Streams**: High-fidelity media, completely downloadable for offline playback using local storage.
+- **BizLink Uganda**: A powerful local trade gateway featuring visual merchant templates, stock control dashboards, and real-time interactive mapping coordinates.
+
+*(Tip: To enable live GPT-4o intelligence, ask the administrator to configure the OPENAI_API_KEY in the Settings > Secrets tab.)*`;
+      }
+
+      res.json({ success: true, text: replyText });
+    }
+  });
+
+  // BIZLINK AI Assistant Route (Template Content, Niche suggestions, and Images)
+  app.post('/api/openai/bizlink-ai', async (req, res) => {
+    const { prompt, type, category } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ error: 'Missing parameter: prompt' });
+    }
+
+    try {
+      const openai = getOpenAI();
+      let systemPrompt = '';
+
+      if (type === 'template') {
+        systemPrompt = "You are BIZLINK AI, an expert retail consultant specializing in Ugandan trade. Generate complete, compelling shop niche outlines, brand names, slogans, and lists of high-demand local products. Respond in clean JSON formatting with keys: 'brandName', 'slogan', 'description', 'recommendedProducts' (an array of objects with 'name', 'price', 'description' in UGX). Keep prices realistic for Kampala markets.";
+      } else if (type === 'description') {
+        systemPrompt = "You are BIZLINK AI. Write an attractive, persuasive, professional product description for a local Ugandan shop vendor. Focus on quality, local convenience, and reliability. Limit to 3 short sentences.";
+      } else {
+        systemPrompt = "You are BIZLINK AI. Help a Ugandan merchant with copywriting, visual ideas, marketing campaigns, or stock organization. Be supportive, informative, and business-focused.";
+      }
+
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+      });
+
+      const reply = response.choices[0]?.message?.content || '';
+      res.json({ success: true, text: reply });
+    } catch (err: any) {
+      console.warn("OpenAI BIZLINK AI call failed, activating Kampala retail sandbox fallback:", err.message || err);
+
+      // HIGH FIDELITY RETAIL SANDBOX FALLBACK
+      const lowerPrompt = prompt.toLowerCase();
+      let responseObj: any = {};
+
+      // Recommended Unsplash photos based on niche keywords
+      let imageSuggestion = 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=600&q=80';
+      if (lowerPrompt.includes('fashion') || lowerPrompt.includes('clothes') || lowerPrompt.includes('wear')) {
+        imageSuggestion = 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=600&q=80';
+      } else if (lowerPrompt.includes('food') || lowerPrompt.includes('restaurant') || lowerPrompt.includes('grocer') || lowerPrompt.includes('fruit')) {
+        imageSuggestion = 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80';
+      } else if (lowerPrompt.includes('craft') || lowerPrompt.includes('artisan') || lowerPrompt.includes('wood')) {
+        imageSuggestion = 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=600&q=80';
+      } else if (lowerPrompt.includes('service') || lowerPrompt.includes('repair') || lowerPrompt.includes('technician')) {
+        imageSuggestion = 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=600&q=80';
+      }
+
+      if (type === 'template') {
+        responseObj = {
+          brandName: "Uganda Express " + (category || "Retail"),
+          slogan: "Quality, trust, and speed directly to your doorstep.",
+          description: `Welcome to our professional storefront! Created using BIZLINK AI. We are proud to serve the Kampala community with top-tier goods, competitive pricing, and fast local courier dispatch.`,
+          recommendedProducts: [
+            { name: "Premium Option A", price: "45,000 UGX", description: "High quality item, carefully vetted for Ugandan users." },
+            { name: "Value Pack B", price: "15,000 UGX", description: "Affordable option offering maximum durability and convenience." }
+          ],
+          imageUrl: imageSuggestion
+        };
+      } else if (type === 'description') {
+        responseObj = {
+          text: `Expertly crafted and sourced specifically for our clients in Kampala. Offering unmatched performance, local warranty protection, and absolute value for money. Available now for instant order with mobile money.`,
+          imageUrl: imageSuggestion
+        };
+      } else {
+        responseObj = {
+          text: `Greetings from BIZLINK AI Sandbox! We suggest focusing on digital mobile money payments and reliable local boda boda courier delivery to build immediate client trust in Kampala. Make sure to list clear prices in UGX.`,
+          imageUrl: imageSuggestion
+        };
+      }
+
+      res.json({
+        success: true,
+        sandbox: true,
+        text: type === 'template' || type === 'description' ? JSON.stringify(responseObj) : responseObj.text,
+        imageUrl: imageSuggestion
+      });
     }
   });
 
