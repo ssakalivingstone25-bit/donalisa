@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Save,
   Eye,
+  EyeOff,
   Copy,
   Check,
   Trash2,
@@ -35,8 +36,9 @@ import {
   Globe
 } from 'lucide-react';
 import { db } from '@/firebase/config';
-import { collection, doc, setDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
 import { OpenAIService } from '@/lib/openai';
+import { BizLinkTemplateEngine } from '@/services/BizLinkTemplateEngine';
 import { ShopTemplate } from './MarketplaceTypes';
 
 interface NavigationItem {
@@ -518,18 +520,89 @@ const TemplateBuilder = ({
         ...template,
         id: templateId,
         status: publish ? 'published' : 'draft',
+        storeStatus: publish ? 'published' : 'draft',
+        description: template.businessDescription,
+        themeColor: template.primaryColor,
+        typography: template.bodyFont,
+        style: template.themeStyle,
+        layoutStyle: template.cardStyle,
+        businessHours: template.hours,
+        location: template.location,
+        logoUrl: template.logoUrl,
+        bannerUrl: template.bannerUrl,
+        tags: [template.category, template.businessTagline, template.location].filter(Boolean),
+        recommendedTypes: [
+          template.category,
+          template.featured ? 'featured' : null,
+          template.trending ? 'trending' : null,
+          template.premium ? 'premium' : null
+        ].filter(Boolean),
+        homepageBlocks: template.homepageSections.map(section => ({
+          id: section.key,
+          title: section.label,
+          enabled: section.enabled
+        })),
         updatedAt: new Date().toISOString(),
         previewImages: template.previewImages.length
           ? template.previewImages
           : [template.bannerUrl]
       };
+
       await setDoc(doc(db, 'shop_templates', templateId), savedTemplate, { merge: true });
-      setTemplate(savedTemplate);
-      setSaveMessage(publish ? 'Template published successfully.' : 'Draft saved successfully.');
-      if (onSave) onSave(savedTemplate);
+      setTemplate(savedTemplate as BuilderTemplateState);
+
+      if (publish) {
+        await BizLinkTemplateEngine.generateStoreFromTemplate(templateId, `admin_demo_${templateId}`, {
+          businessName: template.name,
+          businessDescription: template.businessDescription,
+          userName: template.ownerName,
+          userEmail: template.email,
+          whatsappNumber: template.phone
+        });
+
+        await updateDoc(doc(db, 'shop_templates', templateId), {
+          publishedAt: new Date().toISOString()
+        });
+      }
+
+      setSaveMessage(publish ? 'Template published and is now live in the marketplace.' : 'Draft saved successfully.');
+      if (onSave) onSave(savedTemplate as BuilderTemplateState);
     } catch (error) {
       console.error('Template save failed:', error);
       setSaveMessage('Unable to save template right now.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleUnpublishTemplate = async () => {
+    if (!template.id) {
+      setSaveMessage('Save the template first before unpublishing.');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const templateId = template.id;
+      await updateDoc(doc(db, 'shop_templates', templateId), {
+        status: 'draft',
+        storeStatus: 'draft',
+        updatedAt: new Date().toISOString()
+      });
+
+      const shopsQuery = query(collection(db, 'biz_shops'), where('templateId', '==', templateId));
+      const shopsSnapshot = await getDocs(shopsQuery);
+      await Promise.all(shopsSnapshot.docs.map(shopDoc => updateDoc(doc(db, 'biz_shops', shopDoc.id), {
+        status: 'SUSPENDED',
+        updatedAt: new Date().toISOString()
+      })));
+
+      setTemplate(prev => ({ ...prev, status: 'draft', storeStatus: 'draft' }));
+      setSaveMessage('Template unpublished and removed from the marketplace.');
+      if (onSave) onSave({ ...template, status: 'draft', storeStatus: 'draft' } as BuilderTemplateState);
+    } catch (error) {
+      console.error('Template unpublish failed:', error);
+      setSaveMessage('Unable to unpublish this template right now.');
     } finally {
       setIsSaving(false);
     }
@@ -851,8 +924,12 @@ const TemplateBuilder = ({
             <button onClick={() => handleSaveTemplate(false)} className="inline-flex items-center gap-2 rounded-2xl bg-[#11131b] px-4 py-2 text-xs uppercase tracking-[0.3em] text-white hover:bg-[#1b1f31]">
               <Save className="w-4 h-4" /> Save Draft
             </button>
-            <button onClick={() => handleSaveTemplate(true)} disabled={isSaving} className="inline-flex items-center gap-2 rounded-2xl bg-purple-600 px-4 py-2 text-xs uppercase tracking-[0.3em] text-white hover:bg-purple-700 disabled:opacity-60">
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Publish Template
+            <button
+              onClick={template.status === 'published' ? handleUnpublishTemplate : () => handleSaveTemplate(true)}
+              disabled={isSaving}
+              className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-xs uppercase tracking-[0.3em] text-white disabled:opacity-60 ${template.status === 'published' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-purple-600 hover:bg-purple-700'}`}
+            >
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : template.status === 'published' ? <EyeOff className="w-4 h-4" /> : <Check className="w-4 h-4" />} {template.status === 'published' ? 'Unpublish Template' : 'Publish Template'}
             </button>
             <button onClick={handleDuplicate} className="inline-flex items-center gap-2 rounded-2xl bg-[#11131b] px-4 py-2 text-xs uppercase tracking-[0.3em] text-white hover:bg-[#1b1f31]">
               <Copy className="w-4 h-4" /> Duplicate

@@ -403,8 +403,27 @@ export default function AdminDashboard({
     try {
       const newStatus = currentStatus === 'published' ? 'draft' : 'published';
       await updateDoc(doc(db, 'shop_templates', id), {
-        status: newStatus
+        status: newStatus,
+        storeStatus: newStatus,
+        updatedAt: new Date().toISOString()
       });
+
+      if (newStatus === 'published') {
+        await BizLinkTemplateEngine.generateStoreFromTemplate(id, `admin_demo_${id}`, {
+          businessName: 'BizLink Marketplace Store',
+          businessDescription: 'Published storefront made live from the admin template pipeline.',
+          userName: 'Kampala Arcade Landlord',
+          userEmail: 'landlord@bizlink.co.ug',
+          whatsappNumber: '+256700000000'
+        });
+      } else {
+        const shopsQuery = query(collection(db, 'biz_shops'), where('templateId', '==', id));
+        const shopsSnapshot = await getDocs(shopsQuery);
+        await Promise.all(shopsSnapshot.docs.map(shopDoc => updateDoc(doc(db, 'biz_shops', shopDoc.id), {
+          status: 'SUSPENDED',
+          updatedAt: new Date().toISOString()
+        })));
+      }
     } catch (err: any) {
       console.error("Error toggling template publish:", err);
       alert(`Error toggling template publish: ${err.message || err}`);
