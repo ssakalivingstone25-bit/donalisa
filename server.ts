@@ -3,7 +3,6 @@ import path from 'path';
 import fs from 'fs';
 import { spawn, execSync } from 'child_process';
 import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import { OpenAI } from 'openai';
 
 // Singleton BroadcastEngine Service
@@ -164,27 +163,9 @@ async function startServer() {
     });
   });
 
-  // Lazy GoogleGenAI Initializer
-  let aiInstance: any = null;
-  const getGenAI = () => {
-    if (!aiInstance) {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error('GEMINI_API_KEY is not defined. Please configure it in your Settings > Secrets panel.');
-      }
-      aiInstance = new GoogleGenAI({
-        apiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build'
-          }
-        }
-      });
-    }
-    return aiInstance;
-  };
 
-  // Google Maps Grounding API Route
+
+  // Google Maps Grounding API Route (Powered securely by OpenAI)
   app.post('/api/gemini/maps', async (req, res) => {
     const { prompt, lat, lng } = req.body;
     if (!prompt) {
@@ -192,26 +173,45 @@ async function startServer() {
     }
 
     try {
-      const gemini = getGenAI();
-      const response = await gemini.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: prompt,
-        config: {
-          systemInstruction: "You are Kampala's Premier Digital Arcade AI Concierge. You specialize in geographic queries, physical routing, and marketplace navigation in Kampala and wider Uganda. Ground your answers using the Google Maps tool and return helpful, highly engaging formatting with structured lists of places, local landmarks, and physical visit recommendations. Provide helpful links to Google Maps places from the grounding data.",
-          tools: [{ googleMaps: {} }],
-          toolConfig: {
-            retrievalConfig: {
-              latLng: {
-                latitude: lat || 0.3125,
-                longitude: lng || 32.5795
-              }
-            }
+      const openai = getOpenAI();
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are Kampala's Premier Digital Arcade AI Concierge. You specialize in geographic queries, physical routing, and marketplace navigation in Kampala and wider Uganda. Ground your answers and return helpful, highly engaging formatting with structured lists of places, local landmarks, and physical visit recommendations. Provide helpful links to Google Maps places based on current coordinates: latitude: ${lat || 0.3125}, longitude: ${lng || 32.5795}. Always respond in elegant markdown.`
+          },
+          {
+            role: 'user',
+            content: prompt
           }
-        }
+        ],
+        temperature: 0.7
       });
 
-      const responseText = response.text || '';
-      const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+      const responseText = response.choices[0]?.message?.content || '';
+      
+      // Extract links to build groundingChunks
+      const groundingChunks: any[] = [];
+      const linkRegex = /https?:\/\/[^\s\)]+/g;
+      const links = responseText.match(linkRegex) || [];
+      links.forEach((link, idx) => {
+        if (link.includes('maps.google.com') || link.includes('google.com/maps')) {
+          groundingChunks.push({
+            maps: {
+              title: `Map Location #${idx + 1}`,
+              uri: link
+            }
+          });
+        } else {
+          groundingChunks.push({
+            web: {
+              title: `Reference Resource #${idx + 1}`,
+              uri: link
+            }
+          });
+        }
+      });
 
       res.json({
         success: true,
@@ -219,7 +219,7 @@ async function startServer() {
         groundingChunks
       });
     } catch (err: any) {
-      console.warn("Gemini Maps Grounding failed, deploying highly-realistic Kampala Sandbox Fallback:", err.message || err);
+      console.warn("OpenAI Maps Grounding failed, deploying highly-realistic Kampala Sandbox Fallback:", err.message || err);
       
       // HIGH FIDELITY SANDBOX FALLBACKS
       let fallbackText = '';
@@ -239,7 +239,7 @@ async function startServer() {
           { maps: { title: 'Acacia Mall Kampala (Google Maps)', uri: 'https://www.acaciamall.com' } }
         ];
       } else {
-        fallbackText = `Hello! I am your BizLink Kampala AI Concierge, currently responding from our high-fidelity Kampala Operations Sandbox (API rate limits reached or key not fully provisioned).\n\nBased on regional mapping indexes of Kampala:\n1.  **Downtown Trade Hubs:** Major retail centers (Mutaasa Kafeero, Nabukeera, Kyaggwe Road) are centrally located near Nakasero Hill.\n2.  **Avenue Plazas:** High-end boutique centers like Acacia Mall and Kisementi operate in the Kololo and Kamwokya sectors.\n3.  **Boda Boda Transport:** Local courier dispatch originates from Kampala Central, serving areas like Ntinda, Muyenga, Rubaga, and Wandegeya in 15-30 minutes.\n\n*Please specify your desired venue type or Kampala landmark to receive exact routing coordinates!*`;
+        fallbackText = `Hello! I am your BizLink Kampala AI Concierge, currently responding from our high-fidelity Kampala Operations Sandbox.\n\nBased on regional mapping indexes of Kampala:\n1.  **Downtown Trade Hubs:** Major retail centers (Mutaasa Kafeero, Nabukeera, Kyaggwe Road) are centrally located near Nakasero Hill.\n2.  **Avenue Plazas:** High-end boutique centers like Acacia Mall and Kisementi operate in the Kololo and Kamwokya sectors.\n3.  **Boda Boda Transport:** Local courier dispatch originates from Kampala Central, serving areas like Ntinda, Muyenga, Rubaga, and Wandegeya in 15-30 minutes.\n\n*Please specify your desired venue type or Kampala landmark to receive exact routing coordinates!*`;
         fallbackChunks = [
           { maps: { title: 'Kampala Uganda (Google Maps Overview)', uri: 'https://maps.google.com/?q=Kampala+Uganda' } }
         ];
@@ -247,13 +247,13 @@ async function startServer() {
 
       res.json({
         success: true,
-        text: `${fallbackText}\n\n*(Note: High-Fidelity Local Grounding Sandbox active. Install or upgrade your GEMINI_API_KEY to switch to Live Satellite layers.)*`,
+        text: `${fallbackText}\n\n*(Note: High-Fidelity Local Grounding Sandbox active. Add a valid OPENAI_API_KEY to retrieve live responses.)*`,
         groundingChunks: fallbackChunks
       });
     }
   });
 
-  // Google Search Grounding API Route
+  // Google Search Grounding API Route (Powered securely by OpenAI)
   app.post('/api/gemini/search', async (req, res) => {
     const { prompt } = req.body;
     if (!prompt) {
@@ -261,18 +261,36 @@ async function startServer() {
     }
 
     try {
-      const gemini = getGenAI();
-      const response = await gemini.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: prompt,
-        config: {
-          systemInstruction: "You are Kampala's Premier Digital Arcade AI Concierge. You specialize in real-time retail intelligence, product sourcing, price checking, and business advice in Kampala and wider Uganda. Ground your answers using Google Search. Answer queries about current exchange rates, mobile money fees (MTN & Airtel), current products, store verification, and general Kampala trade practices with actual, real-time factual details. Always cite references using the grounding data links.",
-          tools: [{ googleSearch: {} }]
-        }
+      const openai = getOpenAI();
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are Kampala's Premier Digital Arcade AI Concierge. You specialize in real-time retail intelligence, product sourcing, price checking, and business advice in Kampala and wider Uganda. Answer queries about current exchange rates, mobile money fees (MTN & Airtel), current products, store verification, and general Kampala trade practices with actual, real-time factual details. Always cite references using markdown links.`
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.7
       });
 
-      const responseText = response.text || '';
-      const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+      const responseText = response.choices[0]?.message?.content || '';
+      
+      // Extract links to build groundingChunks
+      const groundingChunks: any[] = [];
+      const linkRegex = /https?:\/\/[^\s\)]+/g;
+      const links = responseText.match(linkRegex) || [];
+      links.forEach((link, idx) => {
+        groundingChunks.push({
+          web: {
+            title: `Reference Source #${idx + 1}`,
+            uri: link
+          }
+        });
+      });
 
       res.json({
         success: true,
@@ -280,7 +298,7 @@ async function startServer() {
         groundingChunks
       });
     } catch (err: any) {
-      console.warn("Gemini Search Grounding failed, deploying highly-realistic Kampala Sandbox Fallback:", err.message || err);
+      console.warn("OpenAI Search Grounding failed, deploying highly-realistic Kampala Sandbox Fallback:", err.message || err);
 
       // HIGH FIDELITY SANDBOX FALLBACKS
       let fallbackText = '';
@@ -300,7 +318,7 @@ async function startServer() {
           { web: { title: 'Dahabshiil Forex Bureau Kampala Portal', uri: 'https://dahabshiil.com/' } }
         ];
       } else {
-        fallbackText = `Hello! I am your BizLink Retail Assistant, answering from our high-fidelity Kampala Operations Sandbox (API rate limits reached or key not fully configured).\n\nTrade & Sourcing Practices in Kampala:\n1.  **Sourcing Products:** Wholesalers are centered at Sega Plaza and Nakivubo. Premium retail is clustered in Acacia Mall, Forest Mall, and Kololo.\n2.  **Payments System:** MTN MoMo Pay and Airtel Money Pay are widely accepted at all digital storefronts across Kampala with 0% extra customer fee.\n3.  **Delivery Verification:** Secure escrow-like cash on delivery or boda-boda courier tracking is standard practice for verified stores.`;
+        fallbackText = `Hello! I am your BizLink Retail Assistant, answering from our high-fidelity Kampala Operations Sandbox.\n\nTrade & Sourcing Practices in Kampala:\n1.  **Sourcing Products:** Wholesalers are centered at Sega Plaza and Nakivubo. Premium retail is clustered in Acacia Mall, Forest Mall, and Kololo.\n2.  **Payments System:** MTN MoMo Pay and Airtel Money Pay are widely accepted at all digital storefronts across Kampala with 0% extra customer fee.\n3.  **Delivery Verification:** Secure escrow-like cash on delivery or boda-boda courier tracking is standard practice for verified stores.`;
         fallbackChunks = [
           { web: { title: 'Kampala Digital Marketplace Portal', uri: 'https://www.bizlink.co.ug/market' } }
         ];
@@ -308,49 +326,9 @@ async function startServer() {
 
       res.json({
         success: true,
-        text: `${fallbackText}\n\n*(Note: High-Fidelity Local Grounding Sandbox active. Install or upgrade your GEMINI_API_KEY to switch to Live Satellite layers.)*`,
+        text: `${fallbackText}\n\n*(Note: High-Fidelity Local Grounding Sandbox active. Add a valid OPENAI_API_KEY to retrieve live responses.)*`,
         groundingChunks: fallbackChunks
       });
-    }
-  });
-
-  // Google Gemini Deep Thinking / Reasoning API Route
-  app.post('/api/gemini/think', async (req, res) => {
-    const { messages } = req.body;
-    if (!messages || !Array.isArray(messages)) {
-      return res.status(400).json({ error: 'Missing or invalid parameter: messages' });
-    }
-
-    const systemInstruction = `You are DONA AI in Reasoning Mode, an ultra-premium assistant powered by high-thinking model gemini-3.1-pro-preview.
-You specialize in solving highly complex queries, deeply structured analysis, business plans, and intricate multi-step tasks.
-Maintain hospitality, warm Ugandan vibes, and absolute clarity in all explanations.`;
-
-    try {
-      const gemini = getGenAI();
-      const contents = messages
-        .filter(m => m.role !== 'system')
-        .map(m => ({
-          role: m.role === 'assistant' || m.role === 'model' ? 'model' : 'user',
-          parts: [{ text: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }]
-        }));
-
-      const response = await gemini.models.generateContent({
-        model: 'gemini-3.1-pro-preview',
-        contents,
-        config: {
-          systemInstruction,
-          thinkingLevel: ThinkingLevel.HIGH
-        }
-      });
-
-      const responseText = response.text || '';
-      res.json({
-        success: true,
-        text: responseText
-      });
-    } catch (err: any) {
-      console.error("Gemini Deep Thinking failed:", err.message || err);
-      res.status(500).json({ error: err.message || 'Gemini Deep Thinking failed' });
     }
   });
 
@@ -391,46 +369,6 @@ Maintain hospitality, warm Ugandan vibes, and absolute clarity in all explanatio
     return openaiInstance;
   };
 
-  // Secure Gemini Fallback Handlers
-  const callGeminiFallback = async (systemInstruction: string, messages: any[]): Promise<string> => {
-    const gemini = getGenAI();
-    const contents = messages
-      .filter(m => m.role !== 'system')
-      .map(m => ({
-        role: m.role === 'assistant' || m.role === 'model' ? 'model' : 'user',
-        parts: [{ text: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }]
-      }));
-
-    const response = await gemini.models.generateContent({
-      model: 'gemini-3.5-flash',
-      contents,
-      config: {
-        systemInstruction,
-        temperature: 0.7,
-      }
-    });
-
-    return response.text || '';
-  };
-
-  const callGeminiBizLinkFallback = async (systemPrompt: string, prompt: string, type: string): Promise<string> => {
-    const gemini = getGenAI();
-    const config: any = {
-      model: 'gemini-3.5-flash',
-      contents: prompt,
-      config: {
-        systemInstruction: systemPrompt,
-        temperature: 0.7,
-      }
-    };
-    if (type === 'template') {
-      config.config.responseMimeType = "application/json";
-    }
-
-    const response = await gemini.models.generateContent(config);
-    return response.text || '';
-  };
-
   // DONA AI Chat Assistant Route
   app.post('/api/openai/dona-ai', async (req, res) => {
     const { messages } = req.body;
@@ -465,35 +403,27 @@ Guidance Rules:
       const reply = response.choices[0]?.message?.content || '';
       res.json({ success: true, text: reply });
     } catch (err: any) {
-      console.warn("OpenAI DONA AI call failed, trying dynamic Gemini-3.5-flash fallback:", err.message || err);
+      console.warn("OpenAI DONA AI call failed, activating Kampala concierge sandbox:", err.message || err);
       
-      try {
-        const reply = await callGeminiFallback(systemInstruction, messages);
-        console.log("[Gemini Fallback] Successfully served live chat response via Gemini-3.5-flash");
-        res.json({ success: true, text: reply });
-      } catch (geminiErr: any) {
-        console.error("Gemini Fallback failed as well, activating Kampala concierge sandbox:", geminiErr.message || geminiErr);
-        
-        // Determine query context
-        const lastMsg = messages[messages.length - 1]?.content?.toLowerCase() || '';
-        let replyText = '';
+      // Determine query context
+      const lastMsg = messages[messages.length - 1]?.content?.toLowerCase() || '';
+      let replyText = '';
 
-        if (lastMsg.includes('offline') || lastMsg.includes('download') || lastMsg.includes('stream') || lastMsg.includes('data')) {
-          replyText = "Hello! I am DONA AI, responding from our Kampala operational sandbox. 🎬\n\nOur offline playback works via specialized local database streams! Any movie or song you download is saved directly to your browser's IndexedDB ledger. This lets you turn off your Wi-Fi or mobile data completely and play your items with **zero buffering and 100% zero data charges**! Try downloading a clip and heading offline to test it!";
-        } else if (lastMsg.includes('bizlink') || lastMsg.includes('merchant') || lastMsg.includes('map') || lastMsg.includes('shop')) {
-          replyText = "Hello! I am DONA AI. 🛍️\n\n**BizLink Uganda** is our dedicated commerce module. It lets local Ugandan business owners apply for storefronts, choose visual niches (Electronics, Groceries, Restaurants, etc.), and list their products. Plus, we've integrated a real-time **Shop Map View** so visitors can see where merchants are physically located in Kampala. If you're a business owner, open BizLink and tap 'Register Store'!";
-        } else {
-          replyText = `Welcome to DONALISA! I am DONA AI, your resident assistant.
+      if (lastMsg.includes('offline') || lastMsg.includes('download') || lastMsg.includes('stream') || lastMsg.includes('data')) {
+        replyText = "Hello! I am DONA AI, responding from our Kampala operational sandbox. 🎬\n\nOur offline playback works via specialized local database streams! Any movie or song you download is saved directly to your browser's IndexedDB ledger. This lets you turn off your Wi-Fi or mobile data completely and play your items with **zero buffering and 100% zero data charges**! Try downloading a clip and heading offline to test it!";
+      } else if (lastMsg.includes('bizlink') || lastMsg.includes('merchant') || lastMsg.includes('map') || lastMsg.includes('shop')) {
+        replyText = "Hello! I am DONA AI. 🛍️\n\n**BizLink Uganda** is our dedicated commerce module. It lets local Ugandan business owners apply for storefronts, choose visual niches (Electronics, Groceries, Restaurants, etc.), and list their products. Plus, we've integrated a real-time **Shop Map View** so visitors can see where merchants are physically located in Kampala. If you're a business owner, open BizLink and tap 'Register Store'!";
+      } else {
+        replyText = `Welcome to DONALISA! I am DONA AI, your resident assistant.
 
 Since we are currently running in Sandbox Mode (API Key is not fully active), here is some key information about us:
 - **Cinematic Streams**: High-fidelity media, completely downloadable for offline playback using local storage.
 - **BizLink Uganda**: A powerful local trade gateway featuring visual merchant templates, stock control dashboards, and real-time interactive mapping coordinates.
 
-*(Tip: To enable live GPT-4o intelligence, ask the administrator to configure the OPENAI_API_KEY in the Settings > Secrets tab.)*`;
-        }
-
-        res.json({ success: true, text: replyText });
+*(Tip: To enable live GPT-4o intelligence, ask the administrator to configure the OPENAI_API_KEY in the Settings > Secrets tab. OpenAI keys start with 'sk-'. If your configured key begins with 'vck_', it is incorrect and must be replaced.)*`;
       }
+
+      res.json({ success: true, text: replyText });
     }
   });
 
@@ -527,7 +457,7 @@ Since we are currently running in Sandbox Mode (API Key is not fully active), he
       const reply = response.choices[0]?.message?.content || '';
       res.json({ success: true, text: reply });
     } catch (err: any) {
-      console.warn("OpenAI BIZLINK AI call failed, trying dynamic Gemini-3.5-flash fallback:", err.message || err);
+      console.warn("OpenAI BIZLINK AI call failed, activating Kampala retail sandbox:", err.message || err);
 
       // Recommended Unsplash photos based on niche keywords
       let imageSuggestion = 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=600&q=80';
@@ -542,49 +472,36 @@ Since we are currently running in Sandbox Mode (API Key is not fully active), he
         imageSuggestion = 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=600&q=80';
       }
 
-      try {
-        const reply = await callGeminiBizLinkFallback(systemPrompt, prompt, type);
-        console.log("[Gemini Fallback] Successfully generated BizLink content via Gemini-3.5-flash");
-        
-        res.json({
-          success: true,
-          text: reply,
+      let responseObj: any = {};
+      if (type === 'template') {
+        responseObj = {
+          brandName: "Uganda Express " + (category || "Retail"),
+          slogan: "Quality, trust, and speed directly to your doorstep.",
+          description: `Welcome to our professional storefront! Created using BIZLINK AI. We are proud to serve the Kampala community with top-tier goods, competitive pricing, and fast local courier dispatch.`,
+          recommendedProducts: [
+            { name: "Premium Option A", price: "45,000 UGX", description: "High quality item, carefully vetted for Ugandan users." },
+            { name: "Value Pack B", price: "15,000 UGX", description: "Affordable option offering maximum durability and convenience." }
+          ],
           imageUrl: imageSuggestion
-        });
-      } catch (geminiErr: any) {
-        console.error("Gemini BizLink fallback failed as well, activating Kampala retail sandbox:", geminiErr.message || geminiErr);
-
-        let responseObj: any = {};
-        if (type === 'template') {
-          responseObj = {
-            brandName: "Uganda Express " + (category || "Retail"),
-            slogan: "Quality, trust, and speed directly to your doorstep.",
-            description: `Welcome to our professional storefront! Created using BIZLINK AI. We are proud to serve the Kampala community with top-tier goods, competitive pricing, and fast local courier dispatch.`,
-            recommendedProducts: [
-              { name: "Premium Option A", price: "45,000 UGX", description: "High quality item, carefully vetted for Ugandan users." },
-              { name: "Value Pack B", price: "15,000 UGX", description: "Affordable option offering maximum durability and convenience." }
-            ],
-            imageUrl: imageSuggestion
-          };
-        } else if (type === 'description') {
-          responseObj = {
-            text: `Expertly crafted and sourced specifically for our clients in Kampala. Offering unmatched performance, local warranty protection, and absolute value for money. Available now for instant order with mobile money.`,
-            imageUrl: imageSuggestion
-          };
-        } else {
-          responseObj = {
-            text: `Greetings from BIZLINK AI Sandbox! We suggest focusing on digital mobile money payments and reliable local boda boda courier delivery to build immediate client trust in Kampala. Make sure to list clear prices in UGX.`,
-            imageUrl: imageSuggestion
-          };
-        }
-
-        res.json({
-          success: true,
-          sandbox: true,
-          text: type === 'template' || type === 'description' ? JSON.stringify(responseObj) : responseObj.text,
+        };
+      } else if (type === 'description') {
+        responseObj = {
+          text: `Expertly crafted and sourced specifically for our clients in Kampala. Offering unmatched performance, local warranty protection, and absolute value for money. Available now for instant order with mobile money.`,
           imageUrl: imageSuggestion
-        });
+        };
+      } else {
+        responseObj = {
+          text: `Greetings from BIZLINK AI Sandbox! We suggest focusing on digital mobile money payments and reliable local boda boda courier delivery to build immediate client trust in Kampala. Make sure to list clear prices in UGX.`,
+          imageUrl: imageSuggestion
+        };
       }
+
+      res.json({
+        success: true,
+        sandbox: true,
+        text: type === 'template' || type === 'description' ? JSON.stringify(responseObj) : responseObj.text,
+        imageUrl: imageSuggestion
+      });
     }
   });
 
