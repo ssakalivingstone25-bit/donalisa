@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { MessageSquare, X, Send, Sparkles, Loader2, Bot, User, HelpCircle } from 'lucide-react';
+import { MessageSquare, X, Send, Sparkles, Loader2, Bot, User, HelpCircle, Mic, MicOff } from 'lucide-react';
 import { OpenAIService } from '@/lib/openai';
 
 interface Message {
@@ -18,7 +18,10 @@ export default function DonaAiWidget() {
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeechSupported, setIsSpeechSupported] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   const presetQuestions = [
     { text: "How does offline download work?", icon: "🎬" },
@@ -26,6 +29,56 @@ export default function DonaAiWidget() {
     { text: "Can I view merchants on a map?", icon: "📍" },
     { text: "How do I register my shop?", icon: "✨" }
   ];
+
+  // Initialize Speech Recognition
+  useEffect(() => {
+    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognitionAPI) {
+      setIsSpeechSupported(true);
+      const rec = new SpeechRecognitionAPI();
+      rec.continuous = false;
+      rec.interimResults = false;
+      rec.lang = 'en-US';
+
+      rec.onstart = () => {
+        setIsListening(true);
+      };
+      rec.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          setInputValue(prev => {
+            const space = prev.trim() ? ' ' : '';
+            return prev + space + transcript;
+          });
+        }
+      };
+      rec.onerror = (event: any) => {
+        console.error("Speech recognition error:", event.error);
+        setIsListening(false);
+      };
+      rec.onend = () => {
+        setIsListening(false);
+      };
+      recognitionRef.current = rec;
+    }
+  }, []);
+
+  const toggleListening = () => {
+    if (!isSpeechSupported || !recognitionRef.current) {
+      alert("Speech Recognition is not supported or permission was denied in this browser.");
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+    } else {
+      try {
+        recognitionRef.current.start();
+      } catch (err) {
+        console.error("Failed to start speech recognition:", err);
+      }
+    }
+  };
 
   // Auto-scroll on new message
   useEffect(() => {
@@ -158,13 +211,28 @@ export default function DonaAiWidget() {
             <div className="p-3 border-t border-[#222] bg-[#0a0a0c] flex items-center gap-2">
               <input
                 type="text"
-                placeholder="Ask DONA AI anything..."
+                placeholder={isListening ? "Listening... Speak now 🎙️" : "Ask DONA AI anything..."}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                 className="flex-1 bg-zinc-900 hover:bg-zinc-900/80 border border-[#222] focus:border-red-600 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-red-600 transition-all"
                 disabled={isLoading}
               />
+              {isSpeechSupported && (
+                <button
+                  type="button"
+                  onClick={toggleListening}
+                  className={`p-2 rounded-xl transition-all cursor-pointer ${
+                    isListening
+                      ? 'bg-red-600 hover:bg-red-700 text-white shadow-md shadow-red-600/30 animate-pulse'
+                      : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-[#222]'
+                  }`}
+                  title={isListening ? 'Click to stop listening' : 'Dictate with your voice'}
+                  disabled={isLoading}
+                >
+                  {isListening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                </button>
+              )}
               <button
                 onClick={() => handleSendMessage()}
                 className="p-2 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-all cursor-pointer shadow-md shadow-red-600/20 disabled:opacity-50"
