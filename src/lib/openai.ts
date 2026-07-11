@@ -9,10 +9,13 @@ export const OpenAIService = {
    */
   async donaAI(messages: { role: 'user' | 'assistant'; content: string }[]): Promise<string> {
     try {
-      const response = await fetch('/api/openai/dona-ai', {
+      // Get the latest user message to send to the secure /api/chat endpoint
+      const lastMessage = messages[messages.length - 1]?.content || '';
+
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages })
+        body: JSON.stringify({ message: lastMessage })
       });
 
       if (!response.ok) {
@@ -20,7 +23,10 @@ export const OpenAIService = {
       }
 
       const data = await response.json();
-      if (data.success) {
+      if (data.reply !== undefined) {
+        return data.reply;
+      }
+      if (data.text !== undefined) {
         return data.text;
       }
       throw new Error(data.error || 'Failed to retrieve response from DONA AI');
