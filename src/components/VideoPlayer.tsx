@@ -627,6 +627,7 @@ export default function VideoPlayer({
           }
         }}
         controls={false}
+        referrerPolicy="no-referrer"
         className="w-full h-full object-contain pointer-events-none z-0 relative"
       >
         {/* Dynamic VTT Tracks */}

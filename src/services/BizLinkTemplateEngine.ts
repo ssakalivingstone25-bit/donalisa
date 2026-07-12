@@ -228,18 +228,6 @@ export const BizLinkTemplateEngine = {
     const finalWhatsapp = applicationData?.whatsappNumber || '';
 
     // 2. Build live shop document representation
-    const now = new Date().toISOString();
-    const generatedKeywords = [
-      ...(template.tags || []),
-      template.name,
-      template.category || 'Retail',
-      template.industry || 'Local Business',
-      ...(template.recommendedTypes || [])
-    ]
-      .map((term) => term?.toString().toLowerCase())
-      .filter(Boolean)
-      .slice(0, 20);
-
     const newShopData = {
       id: shopId,
       templateId: templateId,
@@ -269,22 +257,7 @@ export const BizLinkTemplateEngine = {
       responseTime: 'within 5 minutes',
       totalSales: 0,
       satisfactionRate: 100,
-      publishedAt: now,
-      seoTitle: `${finalShopName} | ${template.category || 'Local Ugandan Store'}`,
-      seoDescription: `${finalDescription.slice(0, 120)}...`,
-      seoKeywords: generatedKeywords,
-      searchKeywords: generatedKeywords,
-      analytics: {
-        publishedAt: now,
-        views: 0,
-        clicks: 0,
-        orders: 0,
-        conversions: 0,
-        reviews: 0
-      },
-      reviewsEnabled: true,
-      recommendedTypes: template.recommendedTypes || [],
-      createdAt: now,
+      createdAt: new Date().toISOString(),
       
       // Theme & styling configurations cloned from template blueprint
       themeColor: template.themeColor || '#06b6d4',
@@ -308,37 +281,6 @@ export const BizLinkTemplateEngine = {
       isFirestoreShopSaved = true;
     } catch (e: any) {
       console.warn(`[TEMPLATE ENGINE] setDoc biz_shops failed, writing to local sandbox cache: ${e.message || e}`);
-    }
-
-    // Notify the merchant and marketplace of the new published storefront
-    try {
-      const merchantNotifId = `notif_shop_published_${shopId}`;
-      await setDoc(doc(db, 'notifications', merchantNotifId), {
-        title: `Your BizLink Shop is Published!`,
-        body: `"${finalShopName}" is now live on the BizLink marketplace with buyer-ready storefront content and search optimization.`,
-        actionUrl: shopId,
-        imageUrl: newShopData.bannerUrl,
-        read: false,
-        createdAt: new Date().toISOString(),
-        userId: merchantId
-      });
-    } catch (notifErr) {
-      console.warn(`[TEMPLATE ENGINE] merchant notification write failed: ${notifErr?.message || notifErr}`);
-    }
-
-    try {
-      const globalNotifId = `notif_new_shop_marketplace_${shopId}`;
-      await setDoc(doc(db, 'notifications', globalNotifId), {
-        title: `New BizLink Store Opened`,
-        body: `"${finalShopName}" is now available in the Kampala Digital Arcade marketplace. Explore products, reviews, and live store details.`,
-        actionUrl: shopId,
-        imageUrl: newShopData.bannerUrl,
-        read: false,
-        createdAt: new Date().toISOString(),
-        userId: null
-      });
-    } catch (notifErr) {
-      console.warn(`[TEMPLATE ENGINE] global notification write failed: ${notifErr?.message || notifErr}`);
     }
 
     // Always mirror in local storage sandbox cache for zero-friction user testing

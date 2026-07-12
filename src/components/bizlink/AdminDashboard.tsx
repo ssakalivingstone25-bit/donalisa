@@ -14,7 +14,6 @@ import { ShopTemplate, MerchantApplication, Shop, Order } from './MarketplaceTyp
 import { PREDEFINED_NICHES, PredefinedNiche } from './nicheData';
 import { BizLinkTemplateEngine } from '@/services/BizLinkTemplateEngine';
 import { OpenAIService } from '@/lib/openai';
-import TemplateBuilder from './TemplateBuilder';
 
 interface AdminDashboardProps {
   currentUserId: string;
@@ -403,27 +402,8 @@ export default function AdminDashboard({
     try {
       const newStatus = currentStatus === 'published' ? 'draft' : 'published';
       await updateDoc(doc(db, 'shop_templates', id), {
-        status: newStatus,
-        storeStatus: newStatus,
-        updatedAt: new Date().toISOString()
+        status: newStatus
       });
-
-      if (newStatus === 'published') {
-        await BizLinkTemplateEngine.generateStoreFromTemplate(id, `admin_demo_${id}`, {
-          businessName: 'BizLink Marketplace Store',
-          businessDescription: 'Published storefront made live from the admin template pipeline.',
-          userName: 'Kampala Arcade Landlord',
-          userEmail: 'landlord@bizlink.co.ug',
-          whatsappNumber: '+256700000000'
-        });
-      } else {
-        const shopsQuery = query(collection(db, 'biz_shops'), where('templateId', '==', id));
-        const shopsSnapshot = await getDocs(shopsQuery);
-        await Promise.all(shopsSnapshot.docs.map(shopDoc => updateDoc(doc(db, 'biz_shops', shopDoc.id), {
-          status: 'SUSPENDED',
-          updatedAt: new Date().toISOString()
-        })));
-      }
     } catch (err: any) {
       console.error("Error toggling template publish:", err);
       alert(`Error toggling template publish: ${err.message || err}`);
@@ -1250,16 +1230,319 @@ export default function AdminDashboard({
         )}
       </div>
 
-      {/* Reusable Template Creation / AI Shop Generator Overlay */}
+      {/* Reusable Template Creation / AI Shop Generator Modal */}
       {showTemplateModal && (
-        <TemplateBuilder
-          initialTemplate={editingTemplate || undefined}
-          onClose={() => setShowTemplateModal(false)}
-          onSave={(savedTemplate) => {
-            setEditingTemplate(savedTemplate);
-            setShowTemplateModal(false);
-          }}
-        />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+          <div className="bg-[#0b0b10] border border-[#1a1a24] rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl relative flex flex-col">
+            <div className="p-5 border-b border-[#1a1a24] flex items-center justify-between bg-[#0e0e14]">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-cyan-400 animate-pulse" />
+                <div>
+                  <h3 className="text-xs font-extrabold text-white tracking-widest uppercase font-mono">BizLink Storefront Template Engine</h3>
+                  <p className="text-[9px] text-gray-500 font-mono">AUTOMATED INSTANT BLUEPRINT HYDRATOR</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowTemplateModal(false);
+                  setIsGenerating(false);
+                }}
+                className="p-1.5 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {isGenerating ? (
+              /* SYSTEM GENERATION FEEDBACK ENGINE */
+              <div className="p-6 bg-[#030305] text-cyan-400 font-mono space-y-4">
+                <div className="flex items-center justify-between border-b border-cyan-950/40 pb-3">
+                  <div className="flex items-center gap-2 text-xs">
+                    <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+                    <span className="font-bold uppercase tracking-wider">Compiling Storefront Blueprint...</span>
+                  </div>
+                  <span className="text-[10px] text-cyan-600 bg-cyan-950/20 border border-cyan-950/40 px-2 py-0.5 rounded">
+                    Step {generationStep} of 6
+                  </span>
+                </div>
+
+                {/* Console Outputs */}
+                <div className="h-64 bg-black/80 rounded-xl border border-cyan-950/30 p-4 overflow-y-auto space-y-1.5 text-[10px] scrollbar-thin scrollbar-thumb-cyan-950">
+                  {generationLogs.map((log, idx) => (
+                    <div key={idx} className={`leading-relaxed ${
+                      log.startsWith('[SUCCESS]') ? 'text-emerald-400 font-extrabold' :
+                      log.startsWith('[ERROR]') ? 'text-rose-400 font-extrabold animate-bounce' :
+                      log.startsWith('[SYSTEM]') ? 'text-cyan-400 font-black' : 'text-gray-400'
+                    }`}>
+                      {log}
+                    </div>
+                  ))}
+                  <div className="text-cyan-600 animate-pulse">_</div>
+                </div>
+
+                <div className="text-[9px] text-gray-500 leading-relaxed text-center">
+                  ⚙️ Please wait. Instantiating modular sections: Hero Banner, Products Catalog, Interactive Review ledger, Cart drawers, and local MTN/Airtel payment nodes...
+                </div>
+              </div>
+            ) : (
+              /* MANUAL TEMPLATE ARCHITECT BOARD */
+              <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+                <div className="space-y-1.5 border-b border-[#1a1a24] pb-3">
+                  <h4 className="text-xs font-black text-white uppercase font-mono tracking-wider">✍️ Manual Template Architect</h4>
+                  <p className="text-[10px] text-gray-500 font-mono">Design and build custom reusable storefront templates, populate with initial structures, and choose whether to publish directly to merchant dashboards.</p>
+                </div>
+
+                {/* MANUAL CUSTOM DESIGN BOARD FORM */}
+                <form onSubmit={handleCreateTemplate} className="space-y-4 font-mono text-xs text-gray-300">
+                    {/* BIZLINK AI COMPANION */}
+                    <div className="bg-[#12121e]/85 border border-purple-500/30 rounded-2xl p-4 space-y-3 relative overflow-hidden shadow-xl">
+                      <div className="absolute top-0 right-0 px-2 py-0.5 bg-purple-900 text-purple-300 text-[8px] uppercase font-bold tracking-widest rounded-bl-lg">
+                        BizLink AI Powered
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-purple-600/15 border border-purple-500/40 flex items-center justify-center">
+                          <Sparkles className="w-3.5 h-3.5 text-purple-400 animate-pulse" />
+                        </div>
+                        <div>
+                          <h4 className="text-[11px] font-extrabold text-white uppercase font-mono tracking-wider">BIZLINK AI CONCEPT GENERATOR</h4>
+                          <p className="text-[9px] text-gray-400 leading-tight">Describe your blueprint; we will build high-quality branding copy, and recommend optimal Unsplash wallpapers.</p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                          type="text"
+                          placeholder="e.g. A gorgeous Kampala apparel store selling custom African kitenge wear"
+                          value={aiPrompt}
+                          onChange={(e) => setAiPrompt(e.target.value)}
+                          className="flex-1 px-3 py-2 bg-[#0a0a0f] border border-gray-800 focus:border-purple-500 focus:outline-none rounded-xl text-white text-[11px]"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAiAutofill}
+                          disabled={isAiGenerating || !aiPrompt.trim()}
+                          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all disabled:opacity-50"
+                        >
+                          {isAiGenerating ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-3.5 h-3.5" />
+                          )}
+                          <span>Generate Design</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-gray-400 block uppercase font-bold">Template Blueprint Name</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Kampala Artisan Crafts"
+                          value={tempName}
+                          onChange={(e) => setTempName(e.target.value)}
+                          className="w-full px-3 py-2 bg-[#12121a] border border-gray-800 focus:border-purple-500 focus:outline-none rounded-xl text-white"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-gray-400 block uppercase font-bold">Store Category</label>
+                        <select
+                          value={tempCategory}
+                          onChange={(e) => setTempCategory(e.target.value)}
+                          className="w-full px-3 py-2 bg-[#12121a] border border-gray-800 focus:border-purple-500 focus:outline-none rounded-xl text-white"
+                        >
+                          <option value="Electronics">Electronics</option>
+                          <option value="Apparel">Apparel & Fashion</option>
+                          <option value="Grocery">Grocery & Fast Moving Goods</option>
+                          <option value="Pharmacy">Pharmacy & Cosmetics</option>
+                          <option value="Hardware">Hardware & Tools</option>
+                          <option value="Retail">General Retail</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-gray-400 block uppercase font-bold">Target Industry</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Handmade Handbags & Crafts"
+                          value={tempIndustry}
+                          onChange={(e) => setTempIndustry(e.target.value)}
+                          className="w-full px-3 py-2 bg-[#12121a] border border-gray-800 focus:border-purple-500 focus:outline-none rounded-xl text-white"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-gray-400 block uppercase font-bold">Typography System</label>
+                        <select
+                          value={tempTypography}
+                          onChange={(e) => setTempTypography(e.target.value)}
+                          className="w-full px-3 py-2 bg-[#12121a] border border-gray-800 focus:border-purple-500 focus:outline-none rounded-xl text-white"
+                        >
+                          <option value="Inter">Inter (Swiss Minimal)</option>
+                          <option value="Space Grotesk">Space Grotesk (Neo-Brutalist Tech)</option>
+                          <option value="Outfit">Outfit (Clean High-Contrast)</option>
+                          <option value="JetBrains Mono">JetBrains Mono (Console Geek)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-gray-400 block uppercase font-bold">Blueprint Description & Pitch</label>
+                      <textarea
+                        required
+                        placeholder="Detailed description of the storefront layout and target niche..."
+                        rows={2}
+                        value={tempDesc}
+                        onChange={(e) => setTempDesc(e.target.value)}
+                        className="w-full px-3 py-2 bg-[#12121a] border border-gray-800 focus:border-purple-500 focus:outline-none rounded-xl text-white resize-none"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-gray-400 block uppercase font-bold">One-time Buy Cost (UGX)</label>
+                        <input
+                          type="number"
+                          required
+                          value={tempPrice}
+                          onChange={(e) => setTempPrice(Number(e.target.value))}
+                          className="w-full px-3 py-2 bg-[#12121a] border border-gray-800 focus:border-purple-500 focus:outline-none rounded-xl text-white"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-gray-400 block uppercase font-bold">Monthly Rental Sub (UGX)</label>
+                        <input
+                          type="number"
+                          required
+                          value={tempMonthlySub}
+                          onChange={(e) => setTempMonthlySub(Number(e.target.value))}
+                          className="w-full px-3 py-2 bg-[#12121a] border border-gray-800 focus:border-purple-500 focus:outline-none rounded-xl text-white"
+                        />
+                      </div>
+                    </div>
+
+                     <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-gray-400 block uppercase font-bold">Banner Wallpaper (Image/Video File)</label>
+                        <input
+                          type="file"
+                          accept="image/*,video/*"
+                          onChange={(e) => handleFileChange(e, setTempBanner)}
+                          className="w-full text-xs text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-mono file:font-black file:bg-red-600 file:text-white hover:file:bg-red-700 cursor-pointer bg-[#12121a] border border-gray-800 p-1 rounded-xl"
+                        />
+                        {tempBanner && (
+                          <div className="mt-1.5 border border-gray-800 p-1 rounded-lg bg-black/40">
+                            {tempBanner.startsWith('data:video') || tempBanner.endsWith('.mp4') || tempBanner.endsWith('.webm') ? (
+                              <video src={tempBanner} className="max-h-16 w-full object-cover rounded" controls muted />
+                            ) : (
+                              <img src={tempBanner} alt="Banner Preview" className="max-h-16 w-full object-cover rounded" />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-gray-400 block uppercase font-bold">Brand Logo (Image File)</label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleFileChange(e, setTempLogo)}
+                          className="w-full text-xs text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-mono file:font-black file:bg-red-600 file:text-white hover:file:bg-red-700 cursor-pointer bg-[#12121a] border border-gray-800 p-1 rounded-xl"
+                        />
+                        {tempLogo && (
+                          <div className="mt-1.5 border border-gray-800 p-1 rounded-lg bg-black/40 flex justify-center">
+                            <img src={tempLogo} alt="Logo Preview" className="h-12 w-12 object-cover rounded-xl" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 items-end">
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-gray-400 block uppercase font-bold">Layout Style</label>
+                        <select
+                          value={tempStyle}
+                          onChange={(e) => setTempStyle(e.target.value)}
+                          className="w-full px-3 py-1.5 bg-[#12121a] border border-gray-800 focus:border-purple-500 focus:outline-none rounded-xl text-white"
+                        >
+                          <option value="Modern Grid">Modern Grid Showcase</option>
+                          <option value="Bento Tech Grid">Bento Tech Grid</option>
+                          <option value="Elegant Editorial">Elegant Editorial</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-gray-400 block uppercase font-bold">Accent Theme</label>
+                        <div className="flex gap-2 items-center">
+                          <input
+                            type="color"
+                            value={tempColor}
+                            onChange={(e) => setTempColor(e.target.value)}
+                            className="w-7 h-7 bg-transparent border-0 cursor-pointer"
+                          />
+                          <span className="text-[10px] font-mono text-gray-400">{tempColor}</span>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setTempColor('#ef4444')}
+                          className="w-4 h-4 rounded-full bg-red-500 border border-gray-900 cursor-pointer"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setTempColor('#3b82f6')}
+                          className="w-4 h-4 rounded-full bg-blue-500 border border-gray-900 cursor-pointer"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setTempColor('#10b981')}
+                          className="w-4 h-4 rounded-full bg-emerald-500 border border-gray-900 cursor-pointer"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setTempColor('#eab308')}
+                          className="w-4 h-4 rounded-full bg-yellow-500 border border-gray-900 cursor-pointer"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-[#1a1a24] flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowTemplateModal(false);
+                          setTempName('');
+                          setTempDesc('');
+                          setTempBanner('');
+                          setTempLogo('');
+                        }}
+                        className="flex-1 py-3 bg-[#13131c] hover:bg-[#1a1a26] text-gray-400 font-mono text-xs uppercase font-black rounded-xl border border-gray-800 transition-all cursor-pointer text-center"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={savingTemp}
+                        className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-mono text-xs uppercase font-black rounded-xl transition-all shadow-md cursor-pointer text-center flex items-center justify-center gap-2"
+                      >
+                        {savingTemp ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin text-white" />
+                            <span>Building Blueprint...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="w-4 h-4 text-white" />
+                            <span>Build Storefront Blueprint</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* COMPREHENSIVE LANDLORD SETUP PANEL MODAL */}

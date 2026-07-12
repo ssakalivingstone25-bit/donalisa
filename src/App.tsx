@@ -46,7 +46,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'init' | 'firebase' | 'collections' | 'storage' | 'security' | 'testing'>('firebase');
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
 
-  const [activePortalTab, setActivePortalTab] = useState<'catalog' | 'profile' | 'admin_dashboard' | 'bizlink' | 'downloads'>('catalog');
+  const [activePortalTab, setActivePortalTab] = useState<'catalog' | 'profile' | 'admin_dashboard' | 'bizlink'>('catalog');
 
   // Social Links state
   const [socialLinks, setSocialLinks] = useState({
